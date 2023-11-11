@@ -1,11 +1,15 @@
+# 模块提供用于处理日期和时间的类 https://docs.python.org/zh-cn/3/library/datetime.html
 import datetime
+# 日志记录工具 https://docs.python.org/zh-cn/3/library/logging.html
 import logging
 import threading
 import time
 
 from modules import errors, shared, devices
+# 对类型提示的支持 https://docs.python.org/zh-cn/3/library/typing.html#typing.Optional
 from typing import Optional
-
+# __name__ 模块的完整限定名称
+# 返回具有指定 name 的日志记录器
 log = logging.getLogger(__name__)
 
 
@@ -26,10 +30,12 @@ class State:
     textinfo = None
     time_start = None
     server_start = None
+    # Event 这是线程之间通信的最简单机制之一：一个线程发出事件信号，而其他线程等待该信号。
     _server_command_signal = threading.Event()
     _server_command: Optional[str] = None
 
     def __init__(self):
+        # 记录服务器启动时间戳
         self.server_start = time.time()
 
     @property

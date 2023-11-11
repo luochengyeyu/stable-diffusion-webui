@@ -1,6 +1,8 @@
+# 用来引入 Python 3.7 中引入的类型注解功能的
 from __future__ import annotations
 
 import os
+# 时间的访问和转换模块 https://docs.python.org/zh-cn/3/library/time.html
 import time
 
 from modules import timer
@@ -10,27 +12,33 @@ from modules import initialize
 startup_timer = timer.startup_timer
 startup_timer.record("launcher")
 
+# 导入依赖库
 initialize.imports()
-
+# 检查依赖库版本
 initialize.check_versions()
 
 
 def create_api(app):
     from modules.api.api import Api
     from modules.call_queue import queue_lock
-
+    # 生成API
     api = Api(app, queue_lock)
     return api
 
 
 def api_only():
+    # https://fastapi.tiangolo.com/zh/
+    # venv/Lib/site-packages/fastapi/applications.py#FastAPI
     from fastapi import FastAPI
+    # 导入启动参数
     from modules.shared_cmd_options import cmd_opts
-
+    # 初始化
     initialize.initialize()
-
+    # 创建FastAPI
     app = FastAPI()
+    # 设置中间件
     initialize_util.setup_middleware(app)
+    # 创建api
     api = create_api(app)
 
     from modules import script_callbacks
@@ -144,6 +152,7 @@ def webui():
 
         print('Restarting UI...')
         shared.demo.close()
+        # 调用方线程暂停执行给定的秒数。
         time.sleep(0.5)
         startup_timer.reset()
         script_callbacks.app_reload_callback()

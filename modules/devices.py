@@ -1,12 +1,12 @@
-import sys
-import contextlib
-from functools import lru_cache
+import sys  # 系统相关的形参和函数
+import contextlib  # 此模块为涉及 with 语句的常见任务提供了实用的工具。
+from functools import lru_cache  # LRU缓存
 
 import torch
 from modules import errors, shared
 
 if sys.platform == "darwin":
-    from modules import mac_specific
+    from modules import mac_specific  # macos特殊处理
 
 
 def has_mps() -> bool:
@@ -16,6 +16,7 @@ def has_mps() -> bool:
         return mac_specific.has_mps
 
 
+# 若config.json配置了--device-id就取配置文件里的，否则直接返回默认的"cuda"
 def get_cuda_device_string():
     if shared.cmd_opts.device_id is not None:
         return f"cuda:{shared.cmd_opts.device_id}"
@@ -24,19 +25,22 @@ def get_cuda_device_string():
 
 
 def get_optimal_device_name():
-    if torch.cuda.is_available():
+    if torch.cuda.is_available():  # gpu可用
         return get_cuda_device_string()
 
-    if has_mps():
+    if has_mps():  # macos
         return "mps"
 
     return "cpu"
 
 
+# 获得最佳设备
 def get_optimal_device():
     return torch.device(get_optimal_device_name())
 
 
+# --use-cpu   {all, sd, interrogate, gfpgan, bsrgan, esrgan, scunet, codeformer}
+# 若task术语use-cpu参数中的一个，返回cpu设备，否则调用get_optimal_device()获取设备
 def get_device_for(task):
     if task in shared.cmd_opts.use_cpu:
         return cpu
@@ -44,8 +48,8 @@ def get_device_for(task):
     return get_optimal_device()
 
 
+#  torch垃圾回收
 def torch_gc():
-
     if torch.cuda.is_available():
         with torch.cuda.device(get_cuda_device_string()):
             torch.cuda.empty_cache()
@@ -103,7 +107,8 @@ def autocast(disable=False):
 
 
 def without_autocast(disable=False):
-    return torch.autocast("cuda", enabled=False) if torch.is_autocast_enabled() and not disable else contextlib.nullcontext()
+    return torch.autocast("cuda",
+                          enabled=False) if torch.is_autocast_enabled() and not disable else contextlib.nullcontext()
 
 
 class NansException(Exception):
@@ -150,4 +155,3 @@ def first_time_calculation():
     x = torch.zeros((1, 1, 3, 3)).to(device, dtype)
     conv2d = torch.nn.Conv2d(1, 1, (3, 3)).to(device, dtype)
     conv2d(x)
-

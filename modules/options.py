@@ -170,7 +170,10 @@ class Options:
         return type_x == type_y
 
     def load(self, filename):
+        # https://docs.python.org/zh-cn/3/library/functions.html#open
+        # 读取模式打开config.json文件
         with open(filename, "r", encoding="utf8") as file:
+            # 将file文件发序列化为一个json对象
             self.data = json.load(file)
 
         # 1.6.0 VAE defaults
@@ -185,6 +188,7 @@ class Options:
         if isinstance(self.data.get('ui_reorder'), str) and self.data.get('ui_reorder') and "ui_reorder_list" not in self.data:
             self.data['ui_reorder_list'] = [i.strip() for i in self.data.get('ui_reorder').split(',')]
 
+        # 遍历配置，找出错误的配置项并打印
         bad_settings = 0
         for k, v in self.data.items():
             info = self.data_labels.get(k, None)
@@ -243,3 +247,4 @@ class Options:
             value = expected_type(value)
 
         return value
+

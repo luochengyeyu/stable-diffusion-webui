@@ -7,6 +7,7 @@ exception_records = []
 
 
 def record_exception():
+    # https://docs.python.org/zh-cn/3/library/sys.html?highlight=sys%20exc_info#sys.exc_info
     _, e, tb = sys.exc_info()
     if e is None:
         return

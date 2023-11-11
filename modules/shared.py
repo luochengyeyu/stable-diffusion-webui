@@ -11,7 +11,9 @@ parser = shared_cmd_options.parser
 
 batch_cond_uncond = True  # old field, unused now in favor of shared.opts.batch_cond_uncond
 parallel_processing_allowed = True
+# --styles-file 默认值styles.csv
 styles_filename = cmd_opts.styles_file
+# --ui-settings-file 默认值：config.json
 config_filename = cmd_opts.ui_settings_file
 hide_dirs = {"visible": not cmd_opts.hide_ui_dir_config}
 

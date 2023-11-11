@@ -1,23 +1,45 @@
 # this scripts installs necessary requirements and launches main program in webui.py
+# 日志库 https://docs.python.org/zh-cn/3/library/logging.html
 import logging
+# 标准库中的正则表达式操作模块 https://docs.python.org/zh-cn/3/library/re.html
 import re
+# 子进程管理 https://docs.python.org/zh-cn/3/library/subprocess.html
 import subprocess
+# 提供了一种使用与操作系统相关的功能的便捷式途径。https://docs.python.org/zh-cn/3/library/os.htm
 import os
+# 提供了一系列对文件和文件集合的高阶操作。 https://docs.python.org/zh-cn/3/library/shutil.html
 import shutil
+# 系统相关的形参和函数 https://docs.python.org/zh-cn/3/library/sys.html
 import sys
+# https://docs.python.org/zh-cn/3/library/importlib.html?highlight=importlib%20util#module-importlib.util
+# 导入器的工具程序代码
 import importlib.util
+# 获取底层平台的标识数据 https://docs.python.org/zh-cn/3/library/platform.html
 import platform
+# JSON 编码和解码器 https://docs.python.org/zh-cn/3/library/json.htm
 import json
+# https://docs.python.org/zh-cn/3/library/functools.html?highlight=lru_cache#functools.lru_cache
+# 给函数提供@lru_cache 注解
 from functools import lru_cache
 
+# 导入 cmd_args 和 errors 模块
+# cmd_args.py 启动参数
 from modules import cmd_args, errors
+# 导入脚本目录和插件目录
+# script_path = \stable-diffusion-webui\scripts
+# extensions_dir = \stable-diffusion-webui\extensions
 from modules.paths_internal import script_path, extensions_dir
+# 导入计时器模块
 from modules.timer import startup_timer
+# 导入log配置模块
 from modules import logging_config
 
+# 命令行参数解析器
 args, _ = cmd_args.parser.parse_known_args()
+# 配置日志等级
 logging_config.setup_logging(args.loglevel)
 
+# C:\dev\stable-diffusion-webui\venv\Scripts\python.exe
 python = sys.executable
 git = os.environ.get('GIT', "git")
 index_url = os.environ.get('INDEX_URL', "")
@@ -30,6 +52,7 @@ if 'GRADIO_ANALYTICS_ENABLED' not in os.environ:
     os.environ['GRADIO_ANALYTICS_ENABLED'] = 'False'
 
 
+# 检查python版本
 def check_python_version():
     is_windows = platform.system() == "Windows"
     major = sys.version_info.major
@@ -37,11 +60,14 @@ def check_python_version():
     micro = sys.version_info.micro
 
     if is_windows:
+        # windows系统支持到3.10.x版本
         supported_minors = [10]
     else:
+        # 其他系统支持到3.7~3.11版本
         supported_minors = [7, 8, 9, 10, 11]
 
     if not (major == 3 and minor in supported_minors):
+        # 如果python版本不符合要求，则打印错误信息
         import modules.errors
 
         modules.errors.print_error_explanation(f"""
@@ -64,6 +90,8 @@ Use --skip-python-version-check to suppress this warning.
 @lru_cache()
 def commit_hash():
     try:
+        # check_output 附带参数运行命令并返回其输出。
+        # 获取当前分支最后一个commit hash
         return subprocess.check_output([git, "rev-parse", "HEAD"], shell=False, encoding='utf8').strip()
     except Exception:
         return "<none>"
@@ -85,6 +113,8 @@ def git_tag():
             return "<none>"
 
 
+# 用于执行命令
+# 例如 用 git clone CodeFormer库
 def run(command, desc=None, errdesc=None, custom_env=None, live: bool = default_command_live) -> str:
     if desc is not None:
         print(desc)
@@ -98,10 +128,10 @@ def run(command, desc=None, errdesc=None, custom_env=None, live: bool = default_
     }
 
     if not live:
+        # subprocess.PIPE 可以被传递给 stdin, stdout 或 stderr 形参。
         run_kwargs["stdout"] = run_kwargs["stderr"] = subprocess.PIPE
 
     result = subprocess.run(**run_kwargs)
-
     if result.returncode != 0:
         error_bits = [
             f"{errdesc or 'Error running command'}.",
@@ -117,6 +147,7 @@ def run(command, desc=None, errdesc=None, custom_env=None, live: bool = default_
     return (result.stdout or "")
 
 
+# 判断库是否安装，例如 torch
 def is_installed(package):
     try:
         spec = importlib.util.find_spec(package)
@@ -126,30 +157,37 @@ def is_installed(package):
     return spec is not None
 
 
+# 构建repositories目录
+# eg：\stable-diffusion-webui\repositories\CodeFormer"
 def repo_dir(name):
     return os.path.join(script_path, dir_repos, name)
 
 
+# 运行 pip 命令
 def run_pip(command, desc=None, live=default_command_live):
     if args.skip_install:
         return
 
     index_url_line = f' --index-url {index_url}' if index_url != '' else ''
-    return run(f'"{python}" -m pip {command} --prefer-binary{index_url_line}', desc=f"Installing {desc}", errdesc=f"Couldn't install {desc}", live=live)
+    return run(f'"{python}" -m pip {command} --prefer-binary{index_url_line}', desc=f"Installing {desc}",
+               errdesc=f"Couldn't install {desc}", live=live)
 
 
+# 用python执行code
 def check_run_python(code: str) -> bool:
     result = subprocess.run([python, "-c", code], capture_output=True, shell=False)
     return result.returncode == 0
 
 
 def git_fix_workspace(dir, name):
-    run(f'"{git}" -C "{dir}" fetch --refetch --no-auto-gc', f"Fetching all contents for {name}", f"Couldn't fetch {name}", live=True)
+    run(f'"{git}" -C "{dir}" fetch --refetch --no-auto-gc', f"Fetching all contents for {name}",
+        f"Couldn't fetch {name}", live=True)
     run(f'"{git}" -C "{dir}" gc --aggressive --prune=now', f"Pruning {name}", f"Couldn't prune {name}", live=True)
     return
 
 
-def run_git(dir, name, command, desc=None, errdesc=None, custom_env=None, live: bool = default_command_live, autofix=True):
+def run_git(dir, name, command, desc=None, errdesc=None, custom_env=None, live: bool = default_command_live,
+            autofix=True):
     try:
         return run(f'"{git}" -C "{dir}" {command}', desc=desc, errdesc=errdesc, custom_env=custom_env, live=live)
     except RuntimeError:
@@ -169,16 +207,19 @@ def git_clone(url, dir, name, commithash=None):
         if commithash is None:
             return
 
-        current_hash = run_git(dir, name, 'rev-parse HEAD', None, f"Couldn't determine {name}'s hash: {commithash}", live=False).strip()
+        current_hash = run_git(dir, name, 'rev-parse HEAD', None, f"Couldn't determine {name}'s hash: {commithash}",
+                               live=False).strip()
         if current_hash == commithash:
             return
 
-        if run_git(dir, name, 'config --get remote.origin.url', None, f"Couldn't determine {name}'s origin URL", live=False).strip() != url:
+        if run_git(dir, name, 'config --get remote.origin.url', None, f"Couldn't determine {name}'s origin URL",
+                   live=False).strip() != url:
             run_git(dir, name, f'remote set-url origin "{url}"', None, f"Failed to set {name}'s origin URL", live=False)
 
         run_git(dir, name, 'fetch', f"Fetching updates for {name}...", f"Couldn't fetch {name}", autofix=False)
 
-        run_git(dir, name, f'checkout {commithash}', f"Checking out commit for {name} with hash: {commithash}...", f"Couldn't checkout commit {commithash} for {name}", live=True)
+        run_git(dir, name, f'checkout {commithash}', f"Checking out commit for {name} with hash: {commithash}...",
+                f"Couldn't checkout commit {commithash} for {name}", live=True)
 
         return
 
@@ -202,10 +243,12 @@ def git_pull_recursive(dir):
                 print(f"Couldn't perform 'git pull' on repository in '{subdir}':\n{e.output.decode('utf-8').strip()}\n")
 
 
+# 检查 webui 代码版本
 def version_check(commit):
     try:
         import requests
-        commits = requests.get('https://api.github.com/repos/AUTOMATIC1111/stable-diffusion-webui/branches/master').json()
+        commits = requests.get(
+            'https://api.github.com/repos/AUTOMATIC1111/stable-diffusion-webui/branches/master').json()
         if commit != "<none>" and commits['commit']['sha'] != commit:
             print("--------------------------------------------------------")
             print("| You are not up to date with the most recent release. |")
@@ -219,6 +262,7 @@ def version_check(commit):
         print("version check failed", e)
 
 
+# 运行插件安装命令
 def run_extension_installer(extension_dir):
     path_installer = os.path.join(extension_dir, "install.py")
     if not os.path.isfile(path_installer):
@@ -228,7 +272,8 @@ def run_extension_installer(extension_dir):
         env = os.environ.copy()
         env['PYTHONPATH'] = f"{os.path.abspath('.')}{os.pathsep}{env.get('PYTHONPATH', '')}"
 
-        stdout = run(f'"{python}" "{path_installer}"', errdesc=f"Error running install.py for extension {extension_dir}", custom_env=env).strip()
+        stdout = run(f'"{python}" "{path_installer}"',
+                     errdesc=f"Error running install.py for extension {extension_dir}", custom_env=env).strip()
         if stdout:
             print(stdout)
     except Exception as e:
@@ -248,12 +293,14 @@ def list_extensions(settings_file):
     disabled_extensions = set(settings.get('disabled_extensions', []))
     disable_all_extensions = settings.get('disable_all_extensions', 'none')
 
-    if disable_all_extensions != 'none' or args.disable_extra_extensions or args.disable_all_extensions or not os.path.isdir(extensions_dir):
+    if disable_all_extensions != 'none' or args.disable_extra_extensions or args.disable_all_extensions or not os.path.isdir(
+            extensions_dir):
         return []
 
     return [x for x in os.listdir(extensions_dir) if x not in disabled_extensions]
 
 
+# 根据settings_file的插件列表去安装插件
 def run_extensions_installers(settings_file):
     if not os.path.isdir(extensions_dir):
         return
@@ -307,23 +354,32 @@ def requirements_met(requirements_file):
     return True
 
 
+# 预先准备环境
 def prepare_environment():
+    # torch下载地址
     torch_index_url = os.environ.get('TORCH_INDEX_URL', "https://download.pytorch.org/whl/cu118")
-    torch_command = os.environ.get('TORCH_COMMAND', f"pip install torch==2.0.1 torchvision==0.15.2 --extra-index-url {torch_index_url}")
+    torch_command = os.environ.get('TORCH_COMMAND',
+                                   f"pip install torch==2.0.1 torchvision==0.15.2 --extra-index-url {torch_index_url}")
     requirements_file = os.environ.get('REQS_FILE', "requirements_versions.txt")
 
     xformers_package = os.environ.get('XFORMERS_PACKAGE', 'xformers==0.0.20')
-    clip_package = os.environ.get('CLIP_PACKAGE', "https://github.com/openai/CLIP/archive/d50d76daa670286dd6cacf3bcd80b5e4823fc8e1.zip")
-    openclip_package = os.environ.get('OPENCLIP_PACKAGE', "https://github.com/mlfoundations/open_clip/archive/bb6e834e9c70d9c27d0dc3ecedeebeaeb1ffad6b.zip")
+    clip_package = os.environ.get('CLIP_PACKAGE',
+                                  "https://github.com/openai/CLIP/archive/d50d76daa670286dd6cacf3bcd80b5e4823fc8e1.zip")
+    openclip_package = os.environ.get('OPENCLIP_PACKAGE',
+                                      "https://github.com/mlfoundations/open_clip/archive/bb6e834e9c70d9c27d0dc3ecedeebeaeb1ffad6b.zip")
 
-    stable_diffusion_repo = os.environ.get('STABLE_DIFFUSION_REPO', "https://github.com/Stability-AI/stablediffusion.git")
-    stable_diffusion_xl_repo = os.environ.get('STABLE_DIFFUSION_XL_REPO', "https://github.com/Stability-AI/generative-models.git")
+    stable_diffusion_repo = os.environ.get('STABLE_DIFFUSION_REPO',
+                                           "https://github.com/Stability-AI/stablediffusion.git")
+    stable_diffusion_xl_repo = os.environ.get('STABLE_DIFFUSION_XL_REPO',
+                                              "https://github.com/Stability-AI/generative-models.git")
     k_diffusion_repo = os.environ.get('K_DIFFUSION_REPO', 'https://github.com/crowsonkb/k-diffusion.git')
     codeformer_repo = os.environ.get('CODEFORMER_REPO', 'https://github.com/sczhou/CodeFormer.git')
     blip_repo = os.environ.get('BLIP_REPO', 'https://github.com/salesforce/BLIP.git')
 
-    stable_diffusion_commit_hash = os.environ.get('STABLE_DIFFUSION_COMMIT_HASH', "cf1d67a6fd5ea1aa600c4df58e5b47da45f6bdbf")
-    stable_diffusion_xl_commit_hash = os.environ.get('STABLE_DIFFUSION_XL_COMMIT_HASH', "45c443b316737a4ab6e40413d7794a7f5657c19f")
+    stable_diffusion_commit_hash = os.environ.get('STABLE_DIFFUSION_COMMIT_HASH',
+                                                  "cf1d67a6fd5ea1aa600c4df58e5b47da45f6bdbf")
+    stable_diffusion_xl_commit_hash = os.environ.get('STABLE_DIFFUSION_XL_COMMIT_HASH',
+                                                     "45c443b316737a4ab6e40413d7794a7f5657c19f")
     k_diffusion_commit_hash = os.environ.get('K_DIFFUSION_COMMIT_HASH', "ab527a9a6d347f364e3d185ba6d714e22d80cb3c")
     codeformer_commit_hash = os.environ.get('CODEFORMER_COMMIT_HASH', "c5b4593074ba6214284d6acd5f1719b6c5d739af")
     blip_commit_hash = os.environ.get('BLIP_COMMIT_HASH', "48211a1594f1321b00f14c9f7a5b4813144b2fb9")
@@ -335,6 +391,7 @@ def prepare_environment():
     except OSError:
         pass
 
+    # 没有设置跳过版本检查的话就检查一下python版本
     if not args.skip_python_version_check:
         check_python_version()
 
@@ -374,19 +431,26 @@ def prepare_environment():
     if not is_installed("ngrok") and args.ngrok:
         run_pip("install ngrok", "ngrok")
         startup_timer.record("install ngrok")
-
+    # 创建 \stable-diffusion-webui\repositories 目录
     os.makedirs(os.path.join(script_path, dir_repos), exist_ok=True)
 
-    git_clone(stable_diffusion_repo, repo_dir('stable-diffusion-stability-ai'), "Stable Diffusion", stable_diffusion_commit_hash)
-    git_clone(stable_diffusion_xl_repo, repo_dir('generative-models'), "Stable Diffusion XL", stable_diffusion_xl_commit_hash)
+    # 下载 BLIP、CodeFormer、generative-models、k-diffusion、stable-diffusion-stability-ai
+    git_clone(stable_diffusion_repo, repo_dir('stable-diffusion-stability-ai'), "Stable Diffusion",
+              stable_diffusion_commit_hash)
+    git_clone(stable_diffusion_xl_repo, repo_dir('generative-models'), "Stable Diffusion XL",
+              stable_diffusion_xl_commit_hash)
     git_clone(k_diffusion_repo, repo_dir('k-diffusion'), "K-diffusion", k_diffusion_commit_hash)
     git_clone(codeformer_repo, repo_dir('CodeFormer'), "CodeFormer", codeformer_commit_hash)
     git_clone(blip_repo, repo_dir('BLIP'), "BLIP", blip_commit_hash)
 
     startup_timer.record("clone repositores")
 
+    # LPIPS 可学习感知图像块相似度(Learned Perceptual Image Patch Similarity)
+    # 也称为“感知损失”(perceptual loss)，用于度量两张图像之间的差别。
     if not is_installed("lpips"):
-        run_pip(f"install -r \"{os.path.join(repo_dir('CodeFormer'), 'requirements.txt')}\"", "requirements for CodeFormer")
+        # 安装 CodeFormer 依赖
+        run_pip(f"install -r \"{os.path.join(repo_dir('CodeFormer'), 'requirements.txt')}\"",
+                "requirements for CodeFormer")
         startup_timer.record("install CodeFormer requirements")
 
     if not os.path.isfile(requirements_file):
@@ -412,7 +476,6 @@ def prepare_environment():
         exit(0)
 
 
-
 def configure_for_tests():
     if "--api" not in sys.argv:
         sys.argv.append("--api")
@@ -427,9 +490,11 @@ def configure_for_tests():
     os.environ['COMMANDLINE_ARGS'] = ""
 
 
+# 启动 webui
 def start():
     print(f"Launching {'API server' if '--nowebui' in sys.argv else 'Web UI'} with arguments: {' '.join(sys.argv[1:])}")
     import webui
+    # 根据是否传入 nowebui 参数来决定启动模式
     if '--nowebui' in sys.argv:
         webui.api_only()
     else:

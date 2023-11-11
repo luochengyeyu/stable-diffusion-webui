@@ -141,10 +141,13 @@ def move_files(src_path: str, dest_path: str, ext_filter: str = None):
 def load_upscalers():
     # We can only do this 'magic' method to dynamically load upscalers if they are referenced,
     # so we'll try to import any _model.py files before looking in __subclasses__
+    # 动态导入codeformer_model.py 等以_model.py的模块
     modules_dir = os.path.join(shared.script_path, "modules")
     for file in os.listdir(modules_dir):
         if "_model.py" in file:
+            # eg: codeformer_model.py deepbooru_model.py esrgan_model.py ...
             model_name = file.replace("_model.py", "")
+            # eg: modules.codeformer_model modules.deepbooru_model
             full_model = f"modules.{model_name}_model"
             try:
                 importlib.import_module(full_model)
@@ -152,14 +155,17 @@ def load_upscalers():
                 pass
 
     datas = []
+    # vars(shared.cmd_opts)的意思是，将shared.cmd_opts对象以字典形式返回。
     commandline_options = vars(shared.cmd_opts)
 
     # some of upscaler classes will not go away after reloading their modules, and we'll end
     # up with two copies of those classes. The newest copy will always be the last in the list,
     # so we go from end to beginning and ignore duplicates
     used_classes = {}
+    # 反向遍历Upscaler直接子类的列表。
     for cls in reversed(Upscaler.__subclasses__()):
         classname = str(cls)
+        # 过滤重复的class
         if classname not in used_classes:
             used_classes[classname] = cls
 

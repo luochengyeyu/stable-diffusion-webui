@@ -1,5 +1,7 @@
+# 导入 modules\launch_utils 模块
 from modules import launch_utils
 
+# 导入启动参数
 args = launch_utils.args
 python = launch_utils.python
 git = launch_utils.git
@@ -25,6 +27,7 @@ start = launch_utils.start
 
 
 def main():
+    # 如果启动参数包含--dump-sysinfo参数，则获取系统信息并输出到根目录的文件里，程序结束
     if args.dump_sysinfo:
         filename = launch_utils.dump_sysinfo()
 
@@ -40,7 +43,7 @@ def main():
 
     if args.test_server:
         configure_for_tests()
-
+    # 调用launch_utils里的start方法
     start()
 
 

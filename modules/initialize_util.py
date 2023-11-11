@@ -1,5 +1,7 @@
+# JSON 编码和解码器|
 import json
 import os
+# 设置异步事件处理程序
 import signal
 import sys
 import re
@@ -34,7 +36,7 @@ def fix_asyncio_event_loop_policy():
         loops to be created automatically on any thread, matching the
         behavior of Tornado versions prior to 5.0 (or 5.0 on Python 2).
     """
-
+    # 异步 I/O https://docs.python.org/zh-cn/3/library/asyncio.html
     import asyncio
 
     if sys.platform == "win32" and hasattr(asyncio, "WindowsSelectorEventLoopPolicy"):
@@ -85,6 +87,7 @@ def restore_config_state_file():
         print(f"!!! Config state backup not found: {config_state_file}")
 
 
+# 若启动参数设置了--tls-keyfile --tls--certfile参数，则校验文件是否存在
 def validate_tls_options():
     from modules.shared_cmd_options import cmd_opts
 
@@ -150,11 +153,12 @@ def dumpstacks():
 
 def configure_sigint_handler():
     # make the program just exit at ctrl+c without waiting for anything
+    # 使程序在 Ctrl+C 处退出，无需等待任何操作
     def sigint_handler(sig, frame):
         print(f'Interrupted with signal {sig} in {frame}')
 
         dumpstacks()
-
+        # 直接退出程序
         os._exit(0)
 
     if not os.environ.get("COVERAGE_RUN"):
@@ -163,20 +167,26 @@ def configure_sigint_handler():
         signal.signal(signal.SIGINT, sigint_handler)
 
 
+# 设置配置项变化回调
 def configure_opts_onchange():
     from modules import shared, sd_models, sd_vae, ui_tempdir, sd_hijack
     from modules.call_queue import wrap_queued_call
 
+    # sd_model_checkpoint 发生变化时调用 reload_model_weights 函数
     shared.opts.onchange("sd_model_checkpoint", wrap_queued_call(lambda: sd_models.reload_model_weights()), call=False)
     shared.opts.onchange("sd_vae", wrap_queued_call(lambda: sd_vae.reload_vae_weights()), call=False)
-    shared.opts.onchange("sd_vae_overrides_per_model_preferences", wrap_queued_call(lambda: sd_vae.reload_vae_weights()), call=False)
+    shared.opts.onchange("sd_vae_overrides_per_model_preferences",
+                         wrap_queued_call(lambda: sd_vae.reload_vae_weights()), call=False)
     shared.opts.onchange("temp_dir", ui_tempdir.on_tmpdir_changed)
     shared.opts.onchange("gradio_theme", shared.reload_gradio_theme)
-    shared.opts.onchange("cross_attention_optimization", wrap_queued_call(lambda: sd_hijack.model_hijack.redo_hijack(shared.sd_model)), call=False)
+    shared.opts.onchange("cross_attention_optimization",
+                         wrap_queued_call(lambda: sd_hijack.model_hijack.redo_hijack(shared.sd_model)), call=False)
     startup_timer.record("opts onchange")
 
 
+# 设置中间件
 def setup_middleware(app):
+    # 导入GZip中间件
     from starlette.middleware.gzip import GZipMiddleware
 
     app.middleware_stack = None  # reset current middleware to allow modifying user provided list
@@ -199,4 +209,3 @@ def configure_cors_middleware(app):
     if cmd_opts.cors_allow_origins_regex:
         cors_options["allow_origin_regex"] = cmd_opts.cors_allow_origins_regex
     app.add_middleware(CORSMiddleware, **cors_options)
-

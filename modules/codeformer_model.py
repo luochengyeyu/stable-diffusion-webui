@@ -19,17 +19,26 @@ codeformer = None
 
 
 def setup_model(dirname):
+    # 创建 Codeformer 模型的文件目录
     os.makedirs(model_path, exist_ok=True)
-
+    # 校验目录是否创创建成功
     path = modules.paths.paths.get("CodeFormer", None)
     if path is None:
         return
 
     try:
+        # normalize 对图像进行归一化
         from torchvision.transforms.functional import normalize
+
         from modules.codeformer.codeformer_arch import CodeFormer
+        # 导入 venv/Lib/site-packages/basicsr/utils/img_util.py中的img2tensor()和tensor2img()
+        # img2tensor: Numpy array to tensor
+        # tensor2img: Convert torch Tensors into image numpy arrays
         from basicsr.utils import img2tensor, tensor2img
+        # venv/Lib/site-packages/facexlib/utils/face_restoration_helper.py#FaceRestoreHelper
+        # Helper for the face restoration pipeline (base class). 人脸恢复管道（基类）的帮助程序。
         from facelib.utils.face_restoration_helper import FaceRestoreHelper
+        # venv/Lib/site-packages/facexlib/detection/retinaface.py
         from facelib.detection.retinaface import retinaface
 
         net_class = CodeFormer
@@ -48,19 +57,25 @@ def setup_model(dirname):
                 if self.net is not None and self.face_helper is not None:
                     self.net.to(devices.device_codeformer)
                     return self.net, self.face_helper
+                # 找到模型路径
                 model_paths = modelloader.load_models(model_path, model_url, self.cmd_dir, download_name='codeformer-v0.1.0.pth', ext_filter=['.pth'])
                 if len(model_paths) != 0:
                     ckpt_path = model_paths[0]
                 else:
                     print("Unable to load codeformer model.")
                     return None, None
+                # ？？？
                 net = net_class(dim_embd=512, codebook_size=1024, n_head=8, n_layers=9, connect_list=['32', '64', '128', '256']).to(devices.device_codeformer)
+                # 从文件中加载模型状态字典
                 checkpoint = torch.load(ckpt_path)['params_ema']
+                # 将加载的状态字典加载到模型中
                 net.load_state_dict(checkpoint)
+                # 在调用model.eval()后，模型的dropout和batch normalization层将被设置为评估模式。
                 net.eval()
-
+                # 设置人脸恢复的device位codeformer的device
                 if hasattr(retinaface, 'device'):
                     retinaface.device = devices.device_codeformer
+                # 创建人脸恢复帮助类
                 face_helper = FaceRestoreHelper(1, face_size=512, crop_ratio=(1, 1), det_model='retinaface_resnet50', save_ext='png', use_parse=True, device=devices.device_codeformer)
 
                 self.net = net

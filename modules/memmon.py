@@ -5,6 +5,7 @@ from collections import defaultdict
 import torch
 
 
+# 内存使用监视器
 class MemUsageMonitor(threading.Thread):
     run_flag = None
     device = None
@@ -24,13 +25,16 @@ class MemUsageMonitor(threading.Thread):
 
         try:
             self.cuda_mem_get_info()
+            # 返回给定设备的CUDA内存分配器统计信息的字典。
             torch.cuda.memory_stats(self.device)
         except Exception as e:  # AMD or whatever
             print(f"Warning: caught exception '{e}', memory monitor disabled")
             self.disabled = True
 
     def cuda_mem_get_info(self):
+        # torch.cuda.current_device() 返回当前所选设备的索引
         index = self.device.index if self.device.index is not None else torch.cuda.current_device()
+        # 使用cudaMemGetInfo返回给定设备的全局空闲和总GPU内存。
         return torch.cuda.mem_get_info(index)
 
     def run(self):
@@ -39,7 +43,7 @@ class MemUsageMonitor(threading.Thread):
 
         while True:
             self.run_flag.wait()
-
+            # 重置CUDA内存分配器所追踪的“峰值”统计信息
             torch.cuda.reset_peak_memory_stats()
             self.data.clear()
 
@@ -49,10 +53,12 @@ class MemUsageMonitor(threading.Thread):
 
             self.data["min_free"] = self.cuda_mem_get_info()[0]
 
+            # 每八分之一秒获取一下内存信息并记录
             while self.run_flag.is_set():
                 free, total = self.cuda_mem_get_info()
                 self.data["min_free"] = min(self.data["min_free"], free)
-
+                # 在生成过程中每秒进行一次VRAM使用情况的调查
+                # config.json 配置memmon_poll_rate = 8
                 time.sleep(1 / self.opts.memmon_poll_rate)
 
     def dump_debug(self):

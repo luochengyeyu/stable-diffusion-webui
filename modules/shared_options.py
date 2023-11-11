@@ -5,9 +5,11 @@ from modules.paths_internal import models_path, script_path, data_path, sd_confi
 from modules.shared_cmd_options import cmd_opts
 from modules.options import options_section, OptionInfo, OptionHTML
 
+# webui可视化界面中Settings选项卡下的配置项
 options_templates = {}
 hide_dirs = shared.hide_dirs
 
+# 限制选项,set集合
 restricted_opts = {
     "samples_filename_pattern",
     "directories_filename_pattern",
@@ -21,6 +23,7 @@ restricted_opts = {
     "outdir_init_images"
 }
 
+# Saving images/grids
 options_templates.update(options_section(('saving-images', "Saving images/grids"), {
     "samples_save": OptionInfo(True, "Always save all generated images"),
     "samples_format": OptionInfo('png', 'File format for images'),
@@ -64,6 +67,7 @@ options_templates.update(options_section(('saving-images', "Saving images/grids"
     "save_incomplete_images": OptionInfo(False, "Save incomplete images").info("save images that has been interrupted in mid-generation; even if not saved, they will still show up in webui output."),
 }))
 
+# Paths for saving
 options_templates.update(options_section(('saving-paths', "Paths for saving"), {
     "outdir_samples": OptionInfo("", "Output directory for images; if empty, defaults to three directories below", component_args=hide_dirs),
     "outdir_txt2img_samples": OptionInfo("outputs/txt2img-images", 'Output directory for txt2img images', component_args=hide_dirs),
