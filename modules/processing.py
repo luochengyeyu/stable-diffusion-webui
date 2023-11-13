@@ -201,61 +201,67 @@ class StableDiffusionProcessing:
     sd_vae_hash: str = field(default=None, init=False)
 
     is_api: bool = field(default=False, init=False)
-
+    #主要用于创建对象后的参数的校验 
+    # 它在自动生成的 __init__ 方法完成后立即执行。通常用于进行一些初始化工作，比如参数校验、参数转换等。
     def __post_init__(self):
+        # 这行代码检查 sampler_index 属性是否不为 None，如果不为 None，则向标准错误输出打印一条消息，
+        # 说明 sampler_index 参数对StableDiffusionProcessing 无效，应该使用 sampler_name。
         if self.sampler_index is not None:
             print("sampler_index argument for StableDiffusionProcessing does not do anything; use sampler_name", file=sys.stderr)
-
+        # 创建一个空字典作为 comments 属性 不是初始化时传入的数据 所以在此方法中进行初始化
         self.comments = {}
-
+        # 如果 styles 属性为 None，则设置为一个空列表。
         if self.styles is None:
             self.styles = []
-
+        # 创建一个 sampler_noise_scheduler_override 属性，并设置为 None。
         self.sampler_noise_scheduler_override = None
+        # 如果相应的属性为 None，则从 opts 对象中获取默认值。
         self.s_min_uncond = self.s_min_uncond if self.s_min_uncond is not None else opts.s_min_uncond
         self.s_churn = self.s_churn if self.s_churn is not None else opts.s_churn
         self.s_tmin = self.s_tmin if self.s_tmin is not None else opts.s_tmin
         self.s_tmax = (self.s_tmax if self.s_tmax is not None else opts.s_tmax) or float('inf')
         self.s_noise = self.s_noise if self.s_noise is not None else opts.s_noise
-
+        # 如果相应的属性为 None 或者为假（如空列表、空字典等），则设置为一个新的空字典。
         self.extra_generation_params = self.extra_generation_params or {}
         self.override_settings = self.override_settings or {}
         self.script_args = self.script_args or {}
-
+        # xl的refiner_checkpoint_info 赋值为none    
         self.refiner_checkpoint_info = None
-
+        # seed_enable_extras 为假时执行，默认设置一些与种子（seed）相关的属性
         if not self.seed_enable_extras:
             self.subseed = -1
             self.subseed_strength = 0
             self.seed_resize_from_h = 0
             self.seed_resize_from_w = 0
-
+        # 从 StableDiffusionProcessing 类获取 cached_uc 和 cached_c 属性的值，复制到当前实例。
         self.cached_uc = StableDiffusionProcessing.cached_uc
         self.cached_c = StableDiffusionProcessing.cached_c
-
+    #方法转属性的标签 也就是说他的sd_model 返回的是shared的sd_model
     @property
     def sd_model(self):
         return shared.sd_model
-
+    #定义了上面的参数sd_model的set方法 但是这方法其实啥也不做
     @sd_model.setter
     def sd_model(self, value):
         pass
-
+    #方法转属性的标签 这是他的get方法 也就是说他的scripts 返回的是自己的scripts_value
     @property
     def scripts(self):
         return self.scripts_value
-
+    # 属性scripts的set方法 
     @scripts.setter
     def scripts(self, value):
+        # 将输入的 value 赋值给 self.scripts_value。
         self.scripts_value = value
-
+        # 这个条件判断 self.scripts_value、self.script_args_value 是否都存在
+        # 且 self.scripts_setup_complete 为 False。如果是，执行下一步。
         if self.scripts_value and self.script_args_value and not self.scripts_setup_complete:
             self.setup_scripts()
 
     @property
     def script_args(self):
         return self.script_args_value
-
+     
     @script_args.setter
     def script_args(self, value):
         self.script_args_value = value
@@ -264,6 +270,7 @@ class StableDiffusionProcessing:
             self.setup_scripts()
 
     def setup_scripts(self):
+        # 将 scripts_setup_complete 属性设置为 True
         self.scripts_setup_complete = True
 
         self.scripts.setup_scrips(self, is_ui=not self.is_api)
@@ -704,20 +711,26 @@ def create_infotext(p, all_prompts, all_seeds, all_subseeds, comments=None, iter
 
     return f"{prompt_text}{negative_prompt_text}\n{generation_params_text}".strip()
 
-
+#真正的文生图方法
 def process_images(p: StableDiffusionProcessing) -> Processed:
+    # 如果 p.scripts 不为 None，那么就调用 p.scripts 的 before_process 方法。这可能是在处理图像之前进行一些准备工作。
     if p.scripts is not None:
         p.scripts.before_process(p)
-
+    # 创建一个字典 stored_opts，它保存了 opts.data 中与 p.override_settings 的键相对应的键值对。这可能是在修改 opts.data 之前保存原始值。
     stored_opts = {k: opts.data[k] for k in p.override_settings.keys()}
 
     try:
         # if no checkpoint override or the override checkpoint can't be found, remove override entry and load opts checkpoint
         # and if after running refiner, the refiner model is not unloaded - webui swaps back to main model here, if model over is present it will be reloaded afterwards
+        # 这行代码检查 sd_models.checkpoint_aliases 中是否存在p.override_settings.get('sd_model_checkpoint') 指定的键。
+        # 如果不存在，那么就从 p.override_settings 中移除 'sd_model_checkpoint' 键，并重新加载模型权重。
         if sd_models.checkpoint_aliases.get(p.override_settings.get('sd_model_checkpoint')) is None:
+            # 那么就从 p.override_settings 中移除 'sd_model_checkpoint' 键
             p.override_settings.pop('sd_model_checkpoint', None)
+            #重新加载模型权重
             sd_models.reload_model_weights()
-
+        # 这个循环遍历 p.override_settings 中的每一个键值对。
+        # 对于每一个键值对，它会设置 opts 中相应的值，并可能重新加载模型权重。
         for k, v in p.override_settings.items():
             opts.set(k, v, is_api=True, run_callbacks=False)
 
@@ -726,11 +739,11 @@ def process_images(p: StableDiffusionProcessing) -> Processed:
 
             if k == 'sd_vae':
                 sd_vae.reload_vae_weights()
-
+        # 调用 sd_models.apply_token_merging 方法，可能是在处理图像之前调整模型的一些参数。
         sd_models.apply_token_merging(p.sd_model, p.get_token_merging_ratio())
-
+        # 并将结果保存在 res 中。这可能是处理或生成图像的主要步骤。
         res = process_images_inner(p)
-
+    # 之后的代码块在退出函数之前执行一些清理工作，包括恢复 opts 到原始状态，以及可能的重新加载模型权重。
     finally:
         sd_models.apply_token_merging(p.sd_model, 0)
 
@@ -744,7 +757,7 @@ def process_images(p: StableDiffusionProcessing) -> Processed:
 
     return res
 
-
+#图片生成的核心方法
 def process_images_inner(p: StableDiffusionProcessing) -> Processed:
     """this is the main loop that both txt2img and img2img use; it calls func_init once inside all the scopes and func_sample once per batch"""
 
@@ -1007,7 +1020,7 @@ def old_hires_fix_first_pass_dimensions(width, height):
 
     return width, height
 
-
+# 相比普通class，dataclass通常不包含私有属性，数据可以直接访问
 @dataclass(repr=False)
 class StableDiffusionProcessingTxt2Img(StableDiffusionProcessing):
     enable_hr: bool = False
