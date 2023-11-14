@@ -393,24 +393,28 @@ class StableDiffusionProcessing:
         return self.token_merging_ratio or opts.token_merging_ratio
 
     def setup_prompts(self):
+        # 先创建正向描述词的列表
+        # 判断prompt是否为列表类型 是则直接设置为prompt
         if isinstance(self.prompt,list):
             self.all_prompts = self.prompt
+        #  就是正向词不是列表而反向词是的时候 根据批次以及每批次的数量生成对应的关键词列表
         elif isinstance(self.negative_prompt, list):
             self.all_prompts = [self.prompt] * len(self.negative_prompt)
         else:
+            # 如果都不是列表,则根据batch_size和n_iter重复prompt创建列表。
             self.all_prompts = self.batch_size * self.n_iter * [self.prompt]
-
+        #创建反向提示词的列表
         if isinstance(self.negative_prompt, list):
             self.all_negative_prompts = self.negative_prompt
         else:
             self.all_negative_prompts = [self.negative_prompt] * len(self.all_prompts)
-
+        # 判断正向词列表和反向词列表的数组长度是否相等，不相等则抛出异常
         if len(self.all_prompts) != len(self.all_negative_prompts):
             raise RuntimeError(f"Received a different number of prompts ({len(self.all_prompts)}) and negative prompts ({len(self.all_negative_prompts)})")
-
+        #根据用户指定的提示词的格式 进行处理
         self.all_prompts = [shared.prompt_styles.apply_styles_to_prompt(x, self.styles) for x in self.all_prompts]
         self.all_negative_prompts = [shared.prompt_styles.apply_negative_styles_to_prompt(x, self.styles) for x in self.all_negative_prompts]
-
+        # 将第一个prompt和negative prompt设置为main_prompt和main_negative_prompt
         self.main_prompt = self.all_prompts[0]
         self.main_negative_prompt = self.all_negative_prompts[0]
 
@@ -730,7 +734,7 @@ def process_images(p: StableDiffusionProcessing) -> Processed:
             #重新加载模型权重
             sd_models.reload_model_weights()
         # 这个循环遍历 p.override_settings 中的每一个键值对。
-        # 对于每一个键值对，它会设置 opts 中相应的值，并可能重新加载模型权重。
+        # 对于每一个键值对，它会设置 opts 中相应的值，并可能重新加载模型权重。  理解为需要重新加载的选项
         for k, v in p.override_settings.items():
             opts.set(k, v, is_api=True, run_callbacks=False)
 
@@ -760,79 +764,101 @@ def process_images(p: StableDiffusionProcessing) -> Processed:
 #图片生成的核心方法
 def process_images_inner(p: StableDiffusionProcessing) -> Processed:
     """this is the main loop that both txt2img and img2img use; it calls func_init once inside all the scopes and func_sample once per batch"""
-
+    # 这行代码检查 p.prompt 是否为列表类型，如果是，进一步确认其长度大于0。
+    # 如果 p.prompt 是一个空列表，那么 assert 语句会抛出 AssertionError 异常。
     if isinstance(p.prompt, list):
         assert(len(p.prompt) > 0)
     else:
         assert p.prompt is not None
-
+    # 调用 devices.torch_gc 函数。这可能是一个用于清理 PyTorch 产生的 GPU 内存的函数。
+    # 在进行一些内存密集型的操作（如训练深度学习模型）之前，清理 GPU 内存可以防止因内存不足而导致的错误。
     devices.torch_gc()
-
+    # 这两行代码调用 get_fixed_seed 函数，分别使用 p.seed 和 p.subseed 作为参数，
+    # 获取固定的种子值。种子值通常用于初始化随机数生成器，以确保实验的可重复性。
     seed = get_fixed_seed(p.seed)
+    #subseed 子种子 增加额外随机性
     subseed = get_fixed_seed(p.subseed)
 
+    # 是否进行面部修复
     if p.restore_faces is None:
         p.restore_faces = opts.face_restoration
-
+    #干啥的暂时不知道
     if p.tiling is None:
         p.tiling = opts.tiling
-
+    # xl的refiner 暂时先跳过
     if p.refiner_checkpoint not in (None, "", "None", "none"):
         p.refiner_checkpoint_info = sd_models.get_closet_checkpoint_match(p.refiner_checkpoint)
         if p.refiner_checkpoint_info is None:
             raise Exception(f'Could not find checkpoint with name {p.refiner_checkpoint}')
-
+    # sd_model 是一个WebuiSdModel类   是LatentDiffusion的 详细属性跳转到sd_models_types.py
+    # 模型的名字
     p.sd_model_name = shared.sd_model.sd_checkpoint_info.name_for_extra
+    #模型的hash
     p.sd_model_hash = shared.sd_model.sd_model_hash
+    #vae的名字
     p.sd_vae_name = sd_vae.get_loaded_vae_name()
+    # vae的hash
     p.sd_vae_hash = sd_vae.get_loaded_vae_hash()
-
+    #感觉是判断当前模型是否在进行循环卷积计算 如果不是则把判断设置成参数 如果是则不设置
     modules.sd_hijack.model_hijack.apply_circular(p.tiling)
+    # 清除或重置一个模型对象中的注释(comments)和额外生成参数(extra_generation_params)
     modules.sd_hijack.model_hijack.clear_comments()
 
+    # 这个函数是用来设置用户输入的提示(prompt)和负面提示(negative prompt)的。
     p.setup_prompts()
-
+    # 检查seed是否是一个列表,如果是直接赋值给all_seeds
     if isinstance(seed, list):
         p.all_seeds = seed
     else:
+        # 如果seed不是列表,则根据all_prompts列表长度循环生成种子
         p.all_seeds = [int(seed) + (x if p.subseed_strength == 0 else 0) for x in range(len(p.all_prompts))]
-
+    # 检查subseed是否是一个列表,如果是直接赋值给all_seeds
     if isinstance(subseed, list):
         p.all_subseeds = subseed
     else:
+        # 如果subseed不是列表,则根据all_prompts列表长度循环生成种子
         p.all_subseeds = [int(subseed) + x for x in range(len(p.all_prompts))]
-
+    # 检查命令行参数embeddings_dir指定的目录是否存在
+    # 检查模型配置do_not_reload_embeddings是否为False
+    # 如果命中则调用模型的embedding_db对象的load_textual_inversion_embeddings方法  
     if os.path.exists(cmd_opts.embeddings_dir) and not p.do_not_reload_embeddings:
+        # 实现了文本反转词向量的重新加载功能，也就是把embeddings中的embedding文件转出向量
         model_hijack.embedding_db.load_textual_inversion_embeddings()
-
+    #如果使用了脚本 先处理脚本的参数
     if p.scripts is not None:
         p.scripts.process(p)
-
+    # 订阅新的空字典 infotexts和output_images
     infotexts = []
     output_images = []
-
+    # 在不记录历史的情况下进行ema参数更新,节省内存开销，
+    # 这段代码通过context管理Real-Time EMA算法的参数更新过程,同时优化内存开销,因为不记录中间节点的运行历史。 
     with torch.no_grad(), p.sd_model.ema_scope():
+        # devices.autocast()上下文管理器。
+        # autocast可以自动将计算从CPU升级至GPU,提供混合精度计算的能力。
+        # devices.autocast()会进入一个上下文中,在这个范围内:计算会自动判断是否可以使用GPU加速 
         with devices.autocast():
+            #是个空方法
             p.init(p.all_prompts, p.all_seeds, p.all_subseeds)
-
+            #兼容macos的代码  暂时不考虑
             # for OSX, loading the model during sampling changes the generated picture, so it is loaded here
             if shared.opts.live_previews_enable and opts.show_progress_type == "Approx NN":
                 sd_vae_approx.model()
-
+            # 判断是否需要重新使用unet 但是这个unet好像对应的是VAE
             sd_unet.apply_unet()
-
+        #判断当前无任务 则将任务数量设置为 批次的数量
         if state.job_count == -1:
             state.job_count = p.n_iter
-
+        # 循环
         for n in range(p.n_iter):
+            # 更新当前批次号
             p.iteration = n
-
+            #判断当前是否要 跳过 如果是 则设置state.skipped为false
             if state.skipped:
                 state.skipped = False
-
+            # 如果已经设置为终止 则直接break 结束跳出循环
             if state.interrupted:
                 break
-
+            # 载入模型数据  方法中判断了是否加载
             sd_models.reload_model_weights()  # model can be changed for example by refiner
 
             p.prompts = p.all_prompts[n * p.batch_size:(n + 1) * p.batch_size]

@@ -100,7 +100,7 @@ def guess_model_config_from_state_dict(sd, filename):
 
     return config_default
 
-
+#根据状态字典和info 计算对应的 yaml文件
 def find_checkpoint_config(state_dict, info):
     if info is None:
         return guess_model_config_from_state_dict(state_dict, "")

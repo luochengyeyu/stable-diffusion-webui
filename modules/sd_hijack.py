@@ -182,12 +182,16 @@ class StableDiffusionModelHijack:
             undo_optimizations()
 
     def hijack(self, m):
+        # 获取模型的条件器conditioner对象
         conditioner = getattr(m, 'conditioner', None)
+        # 如果不是空
         if conditioner:
+            # 定义一个新的的数组
             text_cond_models = []
-
+            # 循环 conditioner的文本编码器embedders 模型的编码器  设置好对应的编码器  主要是看几个编码器
             for i in range(len(conditioner.embedders)):
                 embedder = conditioner.embedders[i]
+                # 获取编码器的名称
                 typename = type(embedder).__name__
                 if typename == 'FrozenOpenCLIPEmbedder':
                     embedder.model.token_embedding = EmbeddingsWithFixes(embedder.model.token_embedding, self)
@@ -202,12 +206,12 @@ class StableDiffusionModelHijack:
                     embedder.model.token_embedding = EmbeddingsWithFixes(embedder.model.token_embedding, self, textual_inversion_key='clip_g')
                     conditioner.embedders[i] = sd_hijack_open_clip.FrozenOpenCLIPEmbedder2WithCustomWords(embedder, self)
                     text_cond_models.append(conditioner.embedders[i])
-
+            # 将当前的编码器赋值给cond_stage_model
             if len(text_cond_models) == 1:
                 m.cond_stage_model = text_cond_models[0]
             else:
                 m.cond_stage_model = conditioner
-
+        # 最终根据编码器 获得cond_stage_model和token_embedding的配置
         if type(m.cond_stage_model) == xlmr.BertSeriesModelWithTransformation:
             model_embeddings = m.cond_stage_model.roberta.embeddings
             model_embeddings.token_embedding = EmbeddingsWithFixes(model_embeddings.word_embeddings, self)
@@ -221,15 +225,16 @@ class StableDiffusionModelHijack:
         elif type(m.cond_stage_model) == ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder:
             m.cond_stage_model.model.token_embedding = EmbeddingsWithFixes(m.cond_stage_model.model.token_embedding, self)
             m.cond_stage_model = sd_hijack_open_clip.FrozenOpenCLIPEmbedderWithCustomWords(m.cond_stage_model, self)
-
+        # 给模型加了个方法有没有用不太知道
         apply_weighted_forward(m)
+        # 如果模型有这个 可以进行特殊的劫持 可以先不考虑
         if m.cond_stage_key == "edit":
             sd_hijack_unet.hijack_ddpm_edit()
-
+        # 感觉是个优化方案
         self.apply_optimizations()
-
+        #将模型的价值器 赋值给clip
         self.clip = m.cond_stage_model
-
+        # 将模型层展平成列表
         def flatten(el):
             flattened = [flatten(children) for children in el.children()]
             res = [el]
@@ -238,10 +243,11 @@ class StableDiffusionModelHijack:
             return res
 
         self.layers = flatten(m)
-
+        # 首先检查是否已经备份了UNet原始前向函数
         if not hasattr(ldm.modules.diffusionmodules.openaimodel, 'copy_of_UNetModel_forward_for_webui'):
+            # 如果没有,进行备份保存
             ldm.modules.diffusionmodules.openaimodel.copy_of_UNetModel_forward_for_webui = ldm.modules.diffusionmodules.openaimodel.UNetModel.forward
-
+        # 替换实际前向调用,从而“劫持”UNet的前向定义
         ldm.modules.diffusionmodules.openaimodel.UNetModel.forward = sd_unet.UNetModel_forward
 
     def undo_hijack(self, m):
@@ -280,16 +286,17 @@ class StableDiffusionModelHijack:
         self.clip = None
 
         ldm.modules.diffusionmodules.openaimodel.UNetModel.forward = ldm.modules.diffusionmodules.openaimodel.copy_of_UNetModel_forward_for_webui
-
+    #它有一个参数enable表示是否启用循环边缘填充。 暂时理解不知道啥意思
     def apply_circular(self, enable):
+        # 首先检查当前模型(self)的circular_enabled属性是否等于enable参数,如果等则直接返回,不做额外操作。
         if self.circular_enabled == enable:
             return
-
+        # 否则将self.circular_enabled设置为enable参数值。
         self.circular_enabled = enable
-
+        # 设置为'circular',表示开启循环边缘填充;如果enable为False,则设置为'zeros',表示使用0填充。
         for layer in [layer for layer in self.layers if type(layer) == torch.nn.Conv2d]:
             layer.padding_mode = 'circular' if enable else 'zeros'
-
+    # 这段代码用来清除或重置一个模型对象中的注释(comments)和额外生成参数(extra_generation_params)。
     def clear_comments(self):
         self.comments = []
         self.extra_generation_params = {}

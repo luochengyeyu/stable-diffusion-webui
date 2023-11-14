@@ -240,7 +240,7 @@ class EmbeddingDatabase:
                 except Exception:
                     errors.report(f"Error loading embedding {fn}", exc_info=True)
                     continue
-
+    # 实现了文本反转词向量的重新加载功能
     def load_textual_inversion_embeddings(self, force_reload=False):
         if not force_reload:
             need_reload = False
