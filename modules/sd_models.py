@@ -272,6 +272,7 @@ def transform_checkpoint_dict_key(k):
 
     return k
 
+
 # 主要功能是从加载的状态字典中获取模型的状态字典。
 def get_state_dict_from_checkpoint(pl_sd):
     # 这行代码从 pl_sd 中移除 "state_dict" 键，并获取它的值。
@@ -318,6 +319,7 @@ def read_metadata_from_safetensors(filename):
 
         return res
 
+
 # 从指定的文件中加载模型的状态字典
 # checkpoint_file 传进来的是模型的路径
 def read_state_dict(checkpoint_file, print_global_state=False, map_location=None):
@@ -343,12 +345,13 @@ def read_state_dict(checkpoint_file, print_global_state=False, map_location=None
     sd = get_state_dict_from_checkpoint(pl_sd)
     return sd
 
+
 # 从磁盘或缓存中加载模型的向量数据
 def get_checkpoint_state_dict(checkpoint_info: CheckpointInfo, timer):
     # 计算并获取模型的短哈希值。
     sd_model_hash = checkpoint_info.calculate_shorthash()
     timer.record("calculate hash")
-    #判断这个模型师傅已经加载了 如果加载了 直接在缓存中进行加载
+    # 判断这个模型师傅已经加载了 如果加载了 直接在缓存中进行加载
     if checkpoint_info in checkpoints_loaded:
         # use checkpoint cache
         print(f"Loading weights [{sd_model_hash}] from cache")
@@ -376,6 +379,7 @@ class SkipWritingToConfig:
     def __exit__(self, exc_type, exc_value, exc_traceback):
         SkipWritingToConfig.skip = self.previous
 
+
 # 加载模型想了
 def load_model_weights(model, checkpoint_info: CheckpointInfo, state_dict, timer):
     # 先计算info的模型端hash
@@ -402,7 +406,7 @@ def load_model_weights(model, checkpoint_info: CheckpointInfo, state_dict, timer
     if shared.opts.sd_checkpoint_cache > 0:
         # cache newly loaded model
         checkpoints_loaded[checkpoint_info] = state_dict
-    #删除字典 因为已经加载到模型里面
+    # 删除字典 因为已经加载到模型里面
     del state_dict
     # 判断是否打开了opt_channelslast参数
     # 如果打开,将模型模型转换成channels_last内存格式
@@ -436,15 +440,15 @@ def load_model_weights(model, checkpoint_info: CheckpointInfo, state_dict, timer
         timer.record("apply half()")
     # 判断是否需要upcast采样
     devices.unet_needs_upcast = shared.cmd_opts.upcast_sampling and devices.dtype == torch.float16 and devices.dtype_unet == torch.float16
-    #将模型的第一段模型也即是VAE模型 加载到驱动上
+    # 将模型的第一段模型也即是VAE模型 加载到驱动上
     model.first_stage_model.to(devices.dtype_vae)
     timer.record("apply dtype to VAE")
 
     # clean up cache if limit is reached
-    #缓存的模型超了 则需要删除一个 我们不用
+    # 缓存的模型超了 则需要删除一个 我们不用
     while len(checkpoints_loaded) > shared.opts.sd_checkpoint_cache:
         checkpoints_loaded.popitem(last=False)
-    #属性赋值
+    # 属性赋值
     model.sd_model_hash = sd_model_hash
     model.sd_model_checkpoint = checkpoint_info.filename
     model.sd_checkpoint_info = checkpoint_info
@@ -732,7 +736,7 @@ def reuse_model_from_already_loaded(sd_model, checkpoint_info, timer):
         if loaded_model.sd_checkpoint_info.filename == checkpoint_info.filename:
             already_loaded = loaded_model
             continue
-        #检查是否已加载的模型数量超过了 shared.opts.sd_checkpoints_limit 设置的限制。
+        # 检查是否已加载的模型数量超过了 shared.opts.sd_checkpoints_limit 设置的限制。
         # 如果超过了限制，就卸载多余的模型，将其发送到垃圾回收。
         if len(model_data.loaded_sd_models) > shared.opts.sd_checkpoints_limit > 0:
             print(
@@ -740,25 +744,25 @@ def reuse_model_from_already_loaded(sd_model, checkpoint_info, timer):
             model_data.loaded_sd_models.pop()
             send_model_to_trash(loaded_model)
             timer.record("send model to trash")
-        #如果加载的模型设置要在cpu 中则加载模型到cpu  到时候可以去掉
+        # 如果加载的模型设置要在cpu 中则加载模型到cpu  到时候可以去掉
         if shared.opts.sd_checkpoints_keep_in_cpu:
             send_model_to_cpu(sd_model)
             timer.record("send model to cpu")
     # 如果already_loaded 不为空 也就意味着已经加载过了
     if already_loaded is not None:
-        #调用此方法 将此模型数据加载到cpu中
+        # 调用此方法 将此模型数据加载到cpu中
         send_model_to_device(already_loaded)
         # 打印
         timer.record("send model to device")
         # 将当前的模型set到model_data的sd_mode里面
         model_data.set_sd_model(already_loaded, already_loaded=True)
-        #这个设置 不知道在哪里  但是应该是吧当前模型的名字和hash 加载到shared对应的json 里  可以不考虑
+        # 这个设置 不知道在哪里  但是应该是吧当前模型的名字和hash 加载到shared对应的json 里  可以不考虑
         if not SkipWritingToConfig.skip:
             shared.opts.data["sd_model_checkpoint"] = already_loaded.sd_checkpoint_info.title
             shared.opts.data["sd_checkpoint_hash"] = already_loaded.sd_checkpoint_info.sha256
-        #打印重新加载模型完成
+        # 打印重新加载模型完成
         print(f"Using already loaded model {already_loaded.sd_checkpoint_info.title}: done in {timer.summary()}")
-        #重新加载对应的VAE
+        # 重新加载对应的VAE
         sd_vae.reload_vae_weights(already_loaded)
         # 返回sd_model
         return model_data.sd_model
@@ -782,9 +786,10 @@ def reuse_model_from_already_loaded(sd_model, checkpoint_info, timer):
     else:
         return None
 
+
 # 实现模型 weights 参数重新加载的功能
 def reload_model_weights(sd_model=None, info=None):
-    #如果传入模型的info 要不然使用选择当前选中的项目的模型的info
+    # 如果传入模型的info 要不然使用选择当前选中的项目的模型的info
     checkpoint_info = info or select_checkpoint()
     # 创建定时器对象开始计时
     timer = Timer()
@@ -795,7 +800,7 @@ def reload_model_weights(sd_model=None, info=None):
     if sd_model is None:  # previous model load failed
         current_checkpoint_info = None
     else:
-        #如果不为空则 加载当前模型的info
+        # 如果不为空则 加载当前模型的info
         current_checkpoint_info = sd_model.sd_checkpoint_info
         # 如果文件名相同直接返回模型   这个逻辑没看懂  
         if sd_model.sd_model_checkpoint == checkpoint_info.filename:
@@ -810,9 +815,9 @@ def reload_model_weights(sd_model=None, info=None):
         sd_unet.apply_unet("None")
         send_model_to_cpu(sd_model)
         sd_hijack.model_hijack.undo_hijack(sd_model)
-    #这种是在缓存的模型中没找到我们对应的info的模型，然后从磁盘或者缓存中加载向量数据，也就是状态字典
+    # 这种是在缓存的模型中没找到我们对应的info的模型，然后从磁盘或者缓存中加载向量数据，也就是状态字典
     state_dict = get_checkpoint_state_dict(checkpoint_info, timer)
-    #根据状态字典和checkpoint_info 去匹配config文件
+    # 根据状态字典和checkpoint_info 去匹配config文件
     checkpoint_config = sd_models_config.find_checkpoint_config(state_dict, checkpoint_info)
     # 打印
     timer.record("find config")
@@ -824,16 +829,16 @@ def reload_model_weights(sd_model=None, info=None):
         # 重新加载模型 根据info和字典 暂时先跳过没懂
         load_model(checkpoint_info, already_loaded_state_dict=state_dict)
         return model_data.sd_model
-    
+
     try:
-        #加载模型的字典和VAE
+        # 加载模型的字典和VAE
         load_model_weights(sd_model, checkpoint_info, state_dict, timer)
     except Exception:
         print("Failed to load checkpoint, restoring previous")
         load_model_weights(sd_model, current_checkpoint_info, None, timer)
         raise
     finally:
-        
+
         sd_hijack.model_hijack.hijack(sd_model)
         timer.record("hijack")
 
@@ -856,6 +861,7 @@ def unload_model_weights(sd_model=None, info=None):
     timer = Timer()
 
     if model_data.sd_model:
+        # 将sd_model移动到CPU
         model_data.sd_model.to(devices.cpu)
         sd_hijack.model_hijack.undo_hijack(model_data.sd_model)
         model_data.sd_model = None

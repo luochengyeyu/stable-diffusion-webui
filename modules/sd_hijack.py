@@ -71,7 +71,8 @@ def apply_optimizations(option=None):
 
     selection = option or shared.opts.cross_attention_optimization
     if selection == "Automatic" and len(optimizers) > 0:
-        matching_optimizer = next(iter([x for x in optimizers if x.cmd_opt and getattr(shared.cmd_opts, x.cmd_opt, False)]), optimizers[0])
+        matching_optimizer = next(
+            iter([x for x in optimizers if x.cmd_opt and getattr(shared.cmd_opts, x.cmd_opt, False)]), optimizers[0])
     else:
         matching_optimizer = next(iter([x for x in optimizers if x.title() == selection]), None)
 
@@ -111,45 +112,48 @@ def fix_checkpoint():
 
 
 def weighted_loss(sd_model, pred, target, mean=True):
-    #Calculate the weight normally, but ignore the mean
+    # Calculate the weight normally, but ignore the mean
     loss = sd_model._old_get_loss(pred, target, mean=False)
 
-    #Check if we have weights available
+    # Check if we have weights available
     weight = getattr(sd_model, '_custom_loss_weight', None)
     if weight is not None:
         loss *= weight
 
-    #Return the loss, as mean if specified
+    # Return the loss, as mean if specified
     return loss.mean() if mean else loss
+
 
 def weighted_forward(sd_model, x, c, w, *args, **kwargs):
     try:
-        #Temporarily append weights to a place accessible during loss calc
+        # Temporarily append weights to a place accessible during loss calc
         sd_model._custom_loss_weight = w
 
-        #Replace 'get_loss' with a weight-aware one. Otherwise we need to reimplement 'forward' completely
-        #Keep 'get_loss', but don't overwrite the previous old_get_loss if it's already set
+        # Replace 'get_loss' with a weight-aware one. Otherwise we need to reimplement 'forward' completely
+        # Keep 'get_loss', but don't overwrite the previous old_get_loss if it's already set
         if not hasattr(sd_model, '_old_get_loss'):
             sd_model._old_get_loss = sd_model.get_loss
         sd_model.get_loss = MethodType(weighted_loss, sd_model)
 
-        #Run the standard forward function, but with the patched 'get_loss'
+        # Run the standard forward function, but with the patched 'get_loss'
         return sd_model.forward(x, c, *args, **kwargs)
     finally:
         try:
-            #Delete temporary weights if appended
+            # Delete temporary weights if appended
             del sd_model._custom_loss_weight
         except AttributeError:
             pass
 
-        #If we have an old loss function, reset the loss function to the original one
+        # If we have an old loss function, reset the loss function to the original one
         if hasattr(sd_model, '_old_get_loss'):
             sd_model.get_loss = sd_model._old_get_loss
             del sd_model._old_get_loss
 
+
 def apply_weighted_forward(sd_model):
-    #Add new function 'weighted_forward' that can be called to calc weighted loss
+    # Add new function 'weighted_forward' that can be called to calc weighted loss
     sd_model.weighted_forward = MethodType(weighted_forward, sd_model)
+
 
 def undo_weighted_forward(sd_model):
     try:
@@ -203,8 +207,10 @@ class StableDiffusionModelHijack:
                     conditioner.embedders[i] = sd_hijack_clip.FrozenCLIPEmbedderForSDXLWithCustomWords(embedder, self)
                     text_cond_models.append(conditioner.embedders[i])
                 if typename == 'FrozenOpenCLIPEmbedder2':
-                    embedder.model.token_embedding = EmbeddingsWithFixes(embedder.model.token_embedding, self, textual_inversion_key='clip_g')
-                    conditioner.embedders[i] = sd_hijack_open_clip.FrozenOpenCLIPEmbedder2WithCustomWords(embedder, self)
+                    embedder.model.token_embedding = EmbeddingsWithFixes(embedder.model.token_embedding, self,
+                                                                         textual_inversion_key='clip_g')
+                    conditioner.embedders[i] = sd_hijack_open_clip.FrozenOpenCLIPEmbedder2WithCustomWords(embedder,
+                                                                                                          self)
                     text_cond_models.append(conditioner.embedders[i])
             # 将当前的编码器赋值给cond_stage_model
             if len(text_cond_models) == 1:
@@ -223,7 +229,8 @@ class StableDiffusionModelHijack:
             m.cond_stage_model = sd_hijack_clip.FrozenCLIPEmbedderWithCustomWords(m.cond_stage_model, self)
 
         elif type(m.cond_stage_model) == ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder:
-            m.cond_stage_model.model.token_embedding = EmbeddingsWithFixes(m.cond_stage_model.model.token_embedding, self)
+            m.cond_stage_model.model.token_embedding = EmbeddingsWithFixes(m.cond_stage_model.model.token_embedding,
+                                                                           self)
             m.cond_stage_model = sd_hijack_open_clip.FrozenOpenCLIPEmbedderWithCustomWords(m.cond_stage_model, self)
         # 给模型加了个方法有没有用不太知道
         apply_weighted_forward(m)
@@ -232,8 +239,9 @@ class StableDiffusionModelHijack:
             sd_hijack_unet.hijack_ddpm_edit()
         # 感觉是个优化方案
         self.apply_optimizations()
-        #将模型的价值器 赋值给clip
+        # 将模型的价值器 赋值给clip
         self.clip = m.cond_stage_model
+
         # 将模型层展平成列表
         def flatten(el):
             flattened = [flatten(children) for children in el.children()]
@@ -255,7 +263,8 @@ class StableDiffusionModelHijack:
         if conditioner:
             for i in range(len(conditioner.embedders)):
                 embedder = conditioner.embedders[i]
-                if isinstance(embedder, (sd_hijack_open_clip.FrozenOpenCLIPEmbedderWithCustomWords, sd_hijack_open_clip.FrozenOpenCLIPEmbedder2WithCustomWords)):
+                if isinstance(embedder, (sd_hijack_open_clip.FrozenOpenCLIPEmbedderWithCustomWords,
+                                         sd_hijack_open_clip.FrozenOpenCLIPEmbedder2WithCustomWords)):
                     embedder.wrapped.model.token_embedding = embedder.wrapped.model.token_embedding.wrapped
                     conditioner.embedders[i] = embedder.wrapped
                 if isinstance(embedder, sd_hijack_clip.FrozenCLIPEmbedderForSDXLWithCustomWords):
@@ -286,7 +295,8 @@ class StableDiffusionModelHijack:
         self.clip = None
 
         ldm.modules.diffusionmodules.openaimodel.UNetModel.forward = ldm.modules.diffusionmodules.openaimodel.copy_of_UNetModel_forward_for_webui
-    #它有一个参数enable表示是否启用循环边缘填充。 暂时理解不知道啥意思
+
+    # 它有一个参数enable表示是否启用循环边缘填充。 暂时理解不知道啥意思
     def apply_circular(self, enable):
         # 首先检查当前模型(self)的circular_enabled属性是否等于enable参数,如果等则直接返回,不做额外操作。
         if self.circular_enabled == enable:
@@ -296,6 +306,7 @@ class StableDiffusionModelHijack:
         # 设置为'circular',表示开启循环边缘填充;如果enable为False,则设置为'zeros',表示使用0填充。
         for layer in [layer for layer in self.layers if type(layer) == torch.nn.Conv2d]:
             layer.padding_mode = 'circular' if enable else 'zeros'
+
     # 这段代码用来清除或重置一个模型对象中的注释(comments)和额外生成参数(extra_generation_params)。
     def clear_comments(self):
         self.comments = []

@@ -98,17 +98,22 @@ nv_rng = None
 
 def autocast(disable=False):
     if disable:
+        # nullcontext()是一个特殊的上下文管理器，它不做任何事情。它通常用于替换预期的上下文管理器，当不需要执行任何操作时。
         return contextlib.nullcontext()
 
     if dtype == torch.float32 or shared.cmd_opts.precision == "full":
+        # dtype是PyTorch的float32类型 或者 命令行参数--precision为“full" 也返回nullcontext
         return contextlib.nullcontext()
-
+    # 返回一个上下文管理器，该管理器将自动将数据类型转换为"cuda"，这是GPU上支持的默认数据类型。
     return torch.autocast("cuda")
 
 
 def without_autocast(disable=False):
-    return torch.autocast("cuda",
-                          enabled=False) if torch.is_autocast_enabled() and not disable else contextlib.nullcontext()
+    """
+    在不需要自动类型转换的情况下，返回一个不执行任何操作的上下文管理器 contextlib.nullcontext()。\n
+    如果需要执行自动类型转换，并且没有禁用它，那么就返回一个上下文管理器，该管理器将数据类型转换为 "cuda"。
+    """
+    return torch.autocast("cuda", enabled=False) if torch.is_autocast_enabled() and not disable else contextlib.nullcontext()
 
 
 class NansException(Exception):

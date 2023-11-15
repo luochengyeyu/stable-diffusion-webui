@@ -196,6 +196,7 @@ def setup_middleware(app):
 
 
 def configure_cors_middleware(app):
+    # 处理跨域请求中间件
     from starlette.middleware.cors import CORSMiddleware
     from modules.shared_cmd_options import cmd_opts
 

@@ -46,9 +46,15 @@ def api_only():
     script_callbacks.app_started_callback(None, app)
 
     print(f"Startup time: {startup_timer.summary()}.")
+    # 启动服务
     api.launch(
+        # 若命令行参数包含 --listen
+        # 则 server_name为:"0.0.0.0",该服务具备局域网访问功能，使用本机ip:port方式即可访问
+        # 否则server_name为:"127.0.0.1" 仅本机可访问
         server_name="0.0.0.0" if cmd_opts.listen else "127.0.0.1",
+        # 若命令行参数包含--port 参数则端口号为指定的，否则端口号为默认的7861
         port=cmd_opts.port if cmd_opts.port else 7861,
+        # --subpath 自定义 gRadio的子路径，与反向代理一起使用
         root_path=f"/{cmd_opts.subpath}" if cmd_opts.subpath else ""
     )
 
@@ -152,7 +158,6 @@ def webui():
 
         print('Restarting UI...')
         shared.demo.close()
-        # 调用方线程暂停执行给定的秒数。
         time.sleep(0.5)
         startup_timer.reset()
         script_callbacks.app_reload_callback()
@@ -162,6 +167,7 @@ def webui():
         initialize.initialize_rest(reload_script_modules=True)
 
 
+# 检查脚本是否作为主程序运行，而不是作为模块导入。如果脚本是被导入作为模块，那么里面的代码块则不会被执行。
 if __name__ == "__main__":
     from modules.shared_cmd_options import cmd_opts
 

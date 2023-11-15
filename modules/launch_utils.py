@@ -39,7 +39,7 @@ args, _ = cmd_args.parser.parse_known_args()
 # 配置日志等级
 logging_config.setup_logging(args.loglevel)
 
-# C:\dev\stable-diffusion-webui\venv\Scripts\python.exe
+# stable-diffusion-webui\venv\Scripts\python.exe
 python = sys.executable
 git = os.environ.get('GIT', "git")
 index_url = os.environ.get('INDEX_URL', "")
@@ -233,6 +233,7 @@ def git_clone(url, dir, name, commithash=None):
         run(f'"{git}" -C "{dir}" checkout {commithash}', None, "Couldn't checkout {name}'s hash: {commithash}")
 
 
+# 递归执行 git pull 命令
 def git_pull_recursive(dir):
     for subdir, _, _ in os.walk(dir):
         if os.path.exists(os.path.join(subdir, '.git')):
@@ -286,6 +287,7 @@ def list_extensions(settings_file):
     try:
         if os.path.isfile(settings_file):
             with open(settings_file, "r", encoding="utf8") as file:
+                # 加载settings文件到内存中
                 settings = json.load(file)
     except Exception:
         errors.report("Could not load settings", exc_info=True)
@@ -297,6 +299,7 @@ def list_extensions(settings_file):
             extensions_dir):
         return []
 
+    # 返回不在禁用插件列表里的插件
     return [x for x in os.listdir(extensions_dir) if x not in disabled_extensions]
 
 
@@ -323,6 +326,7 @@ def requirements_met(requirements_file):
     """
     Does a simple parse of a requirements.txt file to determine if all rerqirements in it
     are already installed. Returns True if so, False if not installed or parsing fails.
+    对 requirements.txt 文件进行简单分析，以确定是否已安装其中的所有资源。如果是这样，则返回 True，如果未安装或分析失败，则返回 False。
     """
 
     import importlib.metadata
@@ -463,6 +467,7 @@ def prepare_environment():
     if not args.skip_install:
         run_extensions_installers(settings_file=args.ui_settings_file)
 
+    # 检查webui版本
     if args.update_check:
         version_check(commit)
         startup_timer.record("check version")
@@ -471,6 +476,7 @@ def prepare_environment():
         git_pull_recursive(extensions_dir)
         startup_timer.record("update extensions")
 
+    # 若命令行参数配置了 --exit 则退出程序
     if "--exit" in sys.argv:
         print("Exiting because of --exit argument")
         exit(0)
@@ -501,6 +507,7 @@ def start():
         webui.webui()
 
 
+# 获取系统信息并存储到文件
 def dump_sysinfo():
     from modules import sysinfo
     import datetime

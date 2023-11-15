@@ -1,12 +1,17 @@
+# inspect模块是Python的标准库之一，提供了大量用于检查和分析程序运行时状态的功能。
 import inspect
+# namedtuple 模块是 collections 模块的一部分，它用于创建命名元组。
+# 命名元组是一种特殊的元组类型，它与普通元组类似，但是每个元素都有一个名称。您可以通过名称访问元素，而不是通过位置。
 from collections import namedtuple
+# numpy 库是一个强大的科学计算库，用于处理数组和矩阵等数学对象。它提供了丰富的数学函数和运算符，可以高效地进行数值计算和数据分析。
 import numpy as np
 import torch
+# PIL 库是一个广泛使用的图像处理库，它提供了各种图像处理和操作的功能，例如图像格式转换、图像缩放、图像裁剪、图像合成等。
+# Image 模块是 PIL 库的核心模块，它提供了处理图像的基本功能。
 from PIL import Image
 from modules import devices, images, sd_vae_approx, sd_samplers, sd_vae_taesd, shared, sd_models
 from modules.shared import opts, state
 import k_diffusion.sampling
-
 
 SamplerDataTuple = namedtuple('SamplerData', ['name', 'constructor', 'aliases', 'options'])
 
@@ -41,7 +46,8 @@ def samples_to_images_tensor(sample, approximation=None, model=None):
         approximation = approximation_indexes.get(opts.show_progress_type, 0)
 
         from modules import lowvram
-        if approximation == 0 and lowvram.is_enabled(shared.sd_model) and not shared.opts.live_preview_allow_lowvram_full:
+        if approximation == 0 and lowvram.is_enabled(
+                shared.sd_model) and not shared.opts.live_preview_allow_lowvram_full:
             approximation = 1
 
     if approximation == 2:
@@ -54,7 +60,7 @@ def samples_to_images_tensor(sample, approximation=None, model=None):
     else:
         if model is None:
             model = shared.sd_model
-        with devices.without_autocast(): # fixes an issue with unstable VAEs that are flaky even in fp32
+        with devices.without_autocast():  # fixes an issue with unstable VAEs that are flaky even in fp32
             x_sample = model.decode_first_stage(sample.to(model.first_stage_model.dtype))
 
     return x_sample
@@ -298,7 +304,7 @@ class Sampler:
         if len(self.extra_params) > 0:
             s_churn = getattr(opts, 's_churn', p.s_churn)
             s_tmin = getattr(opts, 's_tmin', p.s_tmin)
-            s_tmax = getattr(opts, 's_tmax', p.s_tmax) or self.s_tmax # 0 = inf
+            s_tmax = getattr(opts, 's_tmax', p.s_tmax) or self.s_tmax  # 0 = inf
             s_noise = getattr(opts, 's_noise', p.s_noise)
 
             if 's_churn' in extra_params_kwargs and s_churn != self.s_churn:
@@ -333,5 +339,6 @@ class Sampler:
     def sample(self, p, x, conditioning, unconditional_conditioning, steps=None, image_conditioning=None):
         raise NotImplementedError()
 
-    def sample_img2img(self, p, x, noise, conditioning, unconditional_conditioning, steps=None, image_conditioning=None):
+    def sample_img2img(self, p, x, noise, conditioning, unconditional_conditioning, steps=None,
+                       image_conditioning=None):
         raise NotImplementedError()

@@ -25,9 +25,13 @@ restricted_opts = {
 
 # Saving images/grids
 options_templates.update(options_section(('saving-images', "Saving images/grids"), {
+    # 始终保存所有生成的图像
     "samples_save": OptionInfo(True, "Always save all generated images"),
+    # 图像的文件格式
     "samples_format": OptionInfo('png', 'File format for images'),
+    # [wiki文档] 图像文件名格式
     "samples_filename_pattern": OptionInfo("", "Images filename pattern", component_args=hide_dirs).link("wiki", "https://github.com/AUTOMATIC1111/stable-diffusion-webui/wiki/Custom-Images-Filename-Name-and-Subdirectory"),
+    # 储存的时候在文件名里添加序号
     "save_images_add_number": OptionInfo(True, "Add number to filename when saving", component_args=hide_dirs),
 
     "grid_save": OptionInfo(True, "Always save all generated image grids"),
@@ -201,13 +205,22 @@ options_templates.update(options_section(('optimizations', "Optimizations"), {
     "batch_cond_uncond": OptionInfo(True, "Batch cond/uncond").info("do both conditional and unconditional denoising in one batch; uses a bit more VRAM during sampling, but improves speed; previously this was controlled by --always-batch-cond-uncond comandline argument"),
 }))
 
+# 兼容性设置
 options_templates.update(options_section(('compatibility', "Compatibility"), {
+    # 使用旧的强调符，用于复现旧随机种子（用于复现2022年9月29日之前版本产生的图像）
     "use_old_emphasis_implementation": OptionInfo(False, "Use old emphasis implementation. Can be useful to reproduce old seeds."),
+    # 使用旧的Karras调度器 σ值(0.1-10)（用于复现2023年1月1日之前生成的图像）
     "use_old_karras_scheduler_sigmas": OptionInfo(False, "Use old karras scheduler sigmas (0.1 to 10)."),
+    # 保留 DPM++SDE采样器 在不同的批量之间的结果差异（可以保持旧种子的复现性但改变批量时结果会发生变化）
     "no_dpmpp_sde_batch_determinism": OptionInfo(False, "Do not make DPM++ SDE deterministic across different batch sizes."),
+    # 在高分辨率修复中，使用长宽滑块设置最终分辨率（恢复旧版高分辨率修复界面，关闭放大倍率和自适应分辨率设置）
     "use_old_hires_fix_width_height": OptionInfo(False, "For hires fix, use width/height sliders to set final resolution rather than first pass (disables Upscale by, Resize width/height to)."),
+    # 使用二阶采样器时，不要修正动态提示词调度
+    # （依旧保持占有相同采样比例，先写入的提示词会产生更大影响，即使用“[tag1:tag2:0.5]”时，tag1的影响力占绝对优势，使用“[tag1:tag2:0.3]”时，才能使两个tag影响力均衡）
     "dont_fix_second_order_samplers_schedule": OptionInfo(False, "Do not fix prompt schedule for second order samplers."),
+    # 高分辨率修复时，使用第一轮生成时的附加网络计算第二轮生成时的调节参数(Cond)
     "hires_fix_use_firstpass_conds": OptionInfo(False, "For hires fix, calculate conds of second pass using extra networks of first pass."),
+    # 提示词动态编辑使用旧的步数表达方式
     "use_old_scheduling": OptionInfo(False, "Use old prompt editing timelines.", infotext="Old prompt editing timelines").info("For [red:green:N]; old: If N < 1, it's a fraction of steps (and hires fix uses range from 0 to 1), if N >= 1, it's an absolute number of steps; new: If N has a decimal point in it, it's a fraction of steps (and hires fix uses range from 1 to 2), othewrwise it's an absolute number of steps"),
 }))
 

@@ -37,8 +37,10 @@ def main():
 
     launch_utils.startup_timer.record("initial startup")
 
+    # 创建"prepare environment"计时器，记录准备环境所用的时间
     with launch_utils.startup_timer.subcategory("prepare environment"):
         if not args.skip_prepare_environment:
+            # 若命令行参数没有配置跳过准备环境参数则执行 准备环境 操作。
             prepare_environment()
 
     if args.test_server:
