@@ -132,6 +132,7 @@ def initialize_rest(*, reload_script_modules=False):
         scripts.load_scripts()
 
     if reload_script_modules:
+        # 遍历所有已加载的模块，找出名称以"modules.ui"开头的模块，然后重新加载这些模块。
         for module in [module for name, module in sys.modules.items() if name.startswith("modules.ui")]:
             importlib.reload(module)
         startup_timer.record("reload script modules")
@@ -155,10 +156,12 @@ def initialize_rest(*, reload_script_modules=False):
     from modules import script_callbacks, sd_hijack_optimizations, sd_hijack
     # 注册获取优化器列表回调
     script_callbacks.on_list_optimizers(sd_hijack_optimizations.list_optimizers)
+    # 获取优化器列表
     sd_hijack.list_optimizers()
     startup_timer.record("scripts list_optimizers")
 
     from modules import sd_unet
+    # 这里没有注册on_list_unets回调，获取不到unets列表。。。。
     sd_unet.list_unets()
     startup_timer.record("scripts list_unets")
 
@@ -171,21 +174,24 @@ def initialize_rest(*, reload_script_modules=False):
         """
 
         shared.sd_model  # noqa: B018
-
         if sd_hijack.current_optimizer is None:
+            # 启动流程没有走这里
             sd_hijack.apply_optimizations()
 
         from modules import devices
         devices.first_time_calculation()
 
+    # 启动一个新线程在run方法中调用load_model函数
     Thread(target=load_model).start()
 
     from modules import shared_items
+    # 重载超网络模型列表
     shared_items.reload_hypernetworks()
     startup_timer.record("reload hypernetworks")
 
     from modules import ui_extra_networks
     ui_extra_networks.initialize()
+    # 注册页面：负面提示词下面的页面，eg：TextualInversion，Hypernetworks，Checkpoints
     ui_extra_networks.register_default_pages()
 
     from modules import extra_networks

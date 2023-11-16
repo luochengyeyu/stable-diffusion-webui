@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 
 class WebuiSdModel(LatentDiffusion):
     """This class is not actually instantinated, but its fields are created and fieeld by webui"""
+    # 这个类实际上并没有被实例化，但它的字段是由 webui 创建和使用的
 
     lowvram: bool
     """True if lowvram/medvram optimizations are enabled -- see modules.lowvram for more info"""

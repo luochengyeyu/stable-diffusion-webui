@@ -151,6 +151,8 @@ def first_time_calculation():
     """
     just do any calculation with pytorch layers - the first time this is done it allocaltes about 700MB of memory and
     spends about 2.7 seconds doing that, at least wih NVidia.
+    使用PyTorch层进行任何计算 - 第一次这样做时，它会分配大约700MB的内存，
+    至少在NVidia上，完成该操作需要2.7秒。
     """
 
     x = torch.zeros((1, 1)).to(device, dtype)

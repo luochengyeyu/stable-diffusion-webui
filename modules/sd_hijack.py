@@ -1,4 +1,6 @@
 import torch
+# silu 是 "Sigmoid Linear Unit" 的缩写，它是 PyTorch 中的一个函数，位于 torch.nn.functional 模块中。
+# 这个函数将输入值映射到输出值，其中输入值和输出值都在实数域。它结合了 Sigmoid 和 ReLU 两种激活函数的特性。
 from torch.nn.functional import silu
 from types import MethodType
 
@@ -39,12 +41,13 @@ current_optimizer: sd_hijack_optimizations.SdOptimization = None
 
 
 def list_optimizers():
+    # 获取到优化器列表
     new_optimizers = script_callbacks.list_optimizers_callback()
-
+    # 过滤掉不可用的优化器
     new_optimizers = [x for x in new_optimizers if x.is_available()]
-
+    # 根据 priority 排序
     new_optimizers = sorted(new_optimizers, key=lambda x: x.priority, reverse=True)
-
+    # 清空optimizers并将new_optimizers添加到optimizers列表
     optimizers.clear()
     optimizers.extend(new_optimizers)
 
@@ -68,12 +71,16 @@ def apply_optimizations(option=None):
     if current_optimizer is not None:
         current_optimizer.undo()
         current_optimizer = None
-
+    # 设置tab>优化设置>交叉关注优化方案，default是 Automatic
     selection = option or shared.opts.cross_attention_optimization
     if selection == "Automatic" and len(optimizers) > 0:
+        # 使用 next() 函数从这个列表中选择第一个满足条件的优化器。如果没有满足条件的优化器，next() 函数会返回列表的第一个元素，也就是 optimizers[0]。
+        # 条件是：优化器存在 cmd_opt属性 并且 shared.cmd_opts存在 cmd_opt属性
         matching_optimizer = next(
             iter([x for x in optimizers if x.cmd_opt and getattr(shared.cmd_opts, x.cmd_opt, False)]), optimizers[0])
     else:
+        # 不是默认选项"Automatic"的case
+        # 从优化器列表中获取到和用户选择的优化器 title一样的优化器
         matching_optimizer = next(iter([x for x in optimizers if x.title() == selection]), None)
 
     if selection == "None":
@@ -85,6 +92,8 @@ def apply_optimizations(option=None):
 
     if matching_optimizer is not None:
         print(f"Applying attention optimization: {matching_optimizer.name}... ", end='')
+        # 应用优化
+        # eg：modules.sd_hijack_optimizations.SdOptimizationXformers.apply
         matching_optimizer.apply()
         print("done.")
         current_optimizer = matching_optimizer
@@ -95,6 +104,9 @@ def apply_optimizations(option=None):
 
 
 def undo_optimizations():
+    """
+    撤消优化
+    """
     ldm.modules.diffusionmodules.model.nonlinearity = diffusionmodules_model_nonlinearity
     ldm.modules.attention.CrossAttention.forward = hypernetwork.attention_CrossAttention_forward
     ldm.modules.diffusionmodules.model.AttnBlock.forward = diffusionmodules_model_AttnBlock_forward
@@ -112,6 +124,15 @@ def fix_checkpoint():
 
 
 def weighted_loss(sd_model, pred, target, mean=True):
+    """
+    计算加权损失
+    Args:
+        sd_model: 模型
+        pred: 预测值
+        target: 目标值
+        mean:
+
+    """
     # Calculate the weight normally, but ignore the mean
     loss = sd_model._old_get_loss(pred, target, mean=False)
 
@@ -125,8 +146,13 @@ def weighted_loss(sd_model, pred, target, mean=True):
 
 
 def weighted_forward(sd_model, x, c, w, *args, **kwargs):
+    """
+    总的来说，这个函数的作用是在计算损失时加入一些权重，然后在计算结束后恢复原来的损失函数和权重。
+    这样做的好处是可以在不改变模型其他部分的情况下，临时地改变损失计算的方式。
+    """
     try:
         # Temporarily append weights to a place accessible during loss calc
+        # 临时将权重附加到损失计算期间可访问的位置
         sd_model._custom_loss_weight = w
 
         # Replace 'get_loss' with a weight-aware one. Otherwise we need to reimplement 'forward' completely
@@ -136,6 +162,7 @@ def weighted_forward(sd_model, x, c, w, *args, **kwargs):
         sd_model.get_loss = MethodType(weighted_loss, sd_model)
 
         # Run the standard forward function, but with the patched 'get_loss'
+        # 运行标准转发函数，但使用修补的“get_loss”
         return sd_model.forward(x, c, *args, **kwargs)
     finally:
         try:
@@ -152,10 +179,14 @@ def weighted_forward(sd_model, x, c, w, *args, **kwargs):
 
 def apply_weighted_forward(sd_model):
     # Add new function 'weighted_forward' that can be called to calc weighted loss
+    # 添加新函数“weighted_forward”，可以调用该函数来计算加权损失
     sd_model.weighted_forward = MethodType(weighted_forward, sd_model)
 
 
 def undo_weighted_forward(sd_model):
+    """
+    删除sd_model对象的 weighted_forward 函数
+    """
     try:
         del sd_model.weighted_forward
     except AttributeError:

@@ -309,6 +309,9 @@ class Hypernetwork:
 
 
 def list_hypernetworks(path):
+    """
+    遍历path下的所有 .pt 文件，并将文件名（不包含扩展名）作为键，完整路径作为值，存储到res字典中
+    """
     res = {}
     for filename in sorted(glob.iglob(os.path.join(path, '**/*.pt'), recursive=True), key=str.lower):
         name = os.path.splitext(os.path.basename(filename))[0]

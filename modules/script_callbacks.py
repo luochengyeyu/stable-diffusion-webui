@@ -289,8 +289,11 @@ def before_ui_callback():
 
 
 def list_optimizers_callback():
+    """
+    触发获取优化器列表回调
+    """
     res = []
-
+    # 遍历callbacks_list_optimizers列表中注册的回调函数，然后逐个调用
     for c in callback_map['callbacks_list_optimizers']:
         try:
             c.callback(res)
@@ -495,5 +498,4 @@ def on_list_optimizers(callback):
 def on_list_unets(callback):
     """register a function to be called when UI is making a list of alternative options for unet.
     The function will be called with one argument, a list, and shall add objects of type modules.sd_unet.SdUnetOption to it."""
-
     add_callback(callback_map['callbacks_list_unets'], callback)

@@ -10,7 +10,7 @@ current_unet = None
 
 def list_unets():
     new_unets = script_callbacks.list_unets_callback()
-
+    print(f'new_unets = {new_unets}')
     unet_options.clear()
     unet_options.extend(new_unets)
 
@@ -30,7 +30,8 @@ def get_unet_option(option=None):
 
     return next(iter([x for x in unet_options if x.label == option]), None)
 
-#这段代码实现了动态加载不同Unet模型的功能: 
+
+# 这段代码实现了动态加载不同Unet模型的功能:
 def apply_unet(option=None):
     # 定义了当前Unet模型和选项的全局变量
     global current_unet_option
@@ -55,7 +56,7 @@ def apply_unet(option=None):
             shared.sd_model.model.diffusion_model.to(devices.device)
         # 结束返回
         return
-    #否则 将模型移动到cpu上
+    # 否则 将模型移动到cpu上
     shared.sd_model.model.diffusion_model.to(devices.cpu)
     # 清理内存
     devices.torch_gc()
@@ -64,7 +65,7 @@ def apply_unet(option=None):
     # 设置当前unet的option属性
     current_unet.option = current_unet_option
     print(f"Activating unet: {current_unet.option.label}")
-    #激活unet
+    # 激活unet
     current_unet.activate()
 
 
@@ -95,5 +96,5 @@ def UNetModel_forward(self, x, timesteps=None, context=None, *args, **kwargs):
     if current_unet is not None:
         return current_unet.forward(x, timesteps, context, *args, **kwargs)
 
-    return ldm.modules.diffusionmodules.openaimodel.copy_of_UNetModel_forward_for_webui(self, x, timesteps, context, *args, **kwargs)
-
+    return ldm.modules.diffusionmodules.openaimodel.copy_of_UNetModel_forward_for_webui(self, x, timesteps, context,
+                                                                                        *args, **kwargs)

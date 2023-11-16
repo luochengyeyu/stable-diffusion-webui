@@ -27,8 +27,11 @@ def refresh_vae_list():
 
 
 def cross_attention_optimizations():
+    """
+    构建webui 设置界面 > 优化设置 > 交叉关注优化方案 的下拉列表选项
+    """
     import modules.sd_hijack
-
+    # ["Automatic","xformers",....,["None"]
     return ["Automatic"] + [x.title() for x in modules.sd_hijack.optimizers] + ["None"]
 
 
@@ -62,7 +65,8 @@ def list_samplers():
 def reload_hypernetworks():
     from modules.hypernetworks import hypernetwork
     from modules import shared
-
+    # cmd_opts.hypernetwork_dir 默认值 models/hypernetworks
+    # 获取超网络模型文件列表
     shared.hypernetworks = hypernetwork.list_hypernetworks(cmd_opts.hypernetwork_dir)
 
 
