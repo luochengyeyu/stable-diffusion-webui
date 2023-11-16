@@ -23,18 +23,27 @@ sgm_diffusionmodules_model_AttnBlock_forward = sgm.modules.diffusionmodules.mode
 
 
 class SdOptimization:
+    """
+    sd 优化 基类
+    """
     name: str = None
     label: str | None = None
     cmd_opt: str | None = None
     priority: int = 0
 
     def title(self):
+        """
+        lable为空 返回name，否则返回 name-lable
+        """
         if self.label is None:
             return self.name
 
         return f"{self.name} - {self.label}"
 
     def is_available(self):
+        """
+        是否可用
+        """
         return True
 
     def apply(self):
@@ -54,7 +63,9 @@ class SdOptimizationXformers(SdOptimization):
     priority = 100
 
     def is_available(self):
-        return shared.cmd_opts.force_enable_xformers or (shared.xformers_available and torch.cuda.is_available() and (6, 0) <= torch.cuda.get_device_capability(shared.device) <= (9, 0))
+        # torch.cuda.is_available() GPU是否可用
+        return shared.cmd_opts.force_enable_xformers or (shared.xformers_available and torch.cuda.is_available() and (
+        6, 0) <= torch.cuda.get_device_capability(shared.device) <= (9, 0))
 
     def apply(self):
         ldm.modules.attention.CrossAttention.forward = xformers_attention_forward
@@ -144,6 +155,9 @@ class SdOptimizationDoggettx(SdOptimization):
 
 
 def list_optimizers(res):
+    """
+    创建优化器列表res
+    """
     res.extend([
         SdOptimizationXformers(),
         SdOptimizationSdpNoMem(),
@@ -155,24 +169,37 @@ def list_optimizers(res):
     ])
 
 
+# 命令行参数是否包含 --xformers 或者 包含 --force-enable-xformers
 if shared.cmd_opts.xformers or shared.cmd_opts.force_enable_xformers:
     try:
         import xformers.ops
+
         shared.xformers_available = True
     except Exception:
         errors.report("Cannot import xformers", exc_info=True)
 
 
 def get_available_vram():
+    """
+    获取可用的VRAM
+    """
     if shared.device.type == 'cuda':
+        # 获取 GPU 内存信息。
         stats = torch.cuda.memory_stats(shared.device)
+        # 当前活跃内存的数量。
         mem_active = stats['active_bytes.all.current']
+        # 当前保留内存的数量。
         mem_reserved = stats['reserved_bytes.all.current']
+        # 当前设备的总可用内存数量
         mem_free_cuda, _ = torch.cuda.mem_get_info(torch.cuda.current_device())
+        # PyTorch 使用的内存数量
         mem_free_torch = mem_reserved - mem_active
+        # 总的可用内存数量
         mem_free_total = mem_free_cuda + mem_free_torch
         return mem_free_total
     else:
+        # CPU
+        # 获取系统的可用内存
         return psutil.virtual_memory().available
 
 
@@ -308,17 +335,17 @@ def einsum_op_slice_1(q, k, v, slice_size):
 
 
 def einsum_op_mps_v1(q, k, v):
-    if q.shape[0] * q.shape[1] <= 2**16: # (512x512) max q.shape[1]: 4096
+    if q.shape[0] * q.shape[1] <= 2 ** 16:  # (512x512) max q.shape[1]: 4096
         return einsum_op_compvis(q, k, v)
     else:
-        slice_size = math.floor(2**30 / (q.shape[0] * q.shape[1]))
+        slice_size = math.floor(2 ** 30 / (q.shape[0] * q.shape[1]))
         if slice_size % 4096 == 0:
             slice_size -= 1
         return einsum_op_slice_1(q, k, v, slice_size)
 
 
 def einsum_op_mps_v2(q, k, v):
-    if mem_total_gb > 8 and q.shape[0] * q.shape[1] <= 2**16:
+    if mem_total_gb > 8 and q.shape[0] * q.shape[1] <= 2 ** 16:
         return einsum_op_compvis(q, k, v)
     else:
         return einsum_op_slice_0(q, k, v, 1)
@@ -350,7 +377,7 @@ def einsum_op(q, k, v):
         return einsum_op_cuda(q, k, v)
 
     if q.device.type == 'mps':
-        if mem_total_gb >= 32 and q.shape[0] % 32 != 0 and q.shape[0] * q.shape[1] < 2**18:
+        if mem_total_gb >= 32 and q.shape[0] % 32 != 0 and q.shape[0] * q.shape[1] < 2 ** 18:
             return einsum_op_mps_v1(q, k, v)
         return einsum_op_mps_v2(q, k, v)
 
@@ -382,6 +409,7 @@ def split_cross_attention_forward_invokeAI(self, x, context=None, mask=None, **k
     r = r.to(dtype)
     return self.to_out(rearrange(r, '(b h) n d -> b n (h d)', h=h))
 
+
 # -- End of code from https://github.com/invoke-ai/InvokeAI --
 
 
@@ -400,9 +428,9 @@ def sub_quad_attention_forward(self, x, context=None, mask=None, **kwargs):
     v = self.to_v(context_v)
     del context, context_k, context_v, x
 
-    q = q.unflatten(-1, (h, -1)).transpose(1,2).flatten(end_dim=1)
-    k = k.unflatten(-1, (h, -1)).transpose(1,2).flatten(end_dim=1)
-    v = v.unflatten(-1, (h, -1)).transpose(1,2).flatten(end_dim=1)
+    q = q.unflatten(-1, (h, -1)).transpose(1, 2).flatten(end_dim=1)
+    k = k.unflatten(-1, (h, -1)).transpose(1, 2).flatten(end_dim=1)
+    v = v.unflatten(-1, (h, -1)).transpose(1, 2).flatten(end_dim=1)
 
     if q.device.type == 'mps':
         q, k, v = q.contiguous(), k.contiguous(), v.contiguous()
@@ -411,11 +439,13 @@ def sub_quad_attention_forward(self, x, context=None, mask=None, **kwargs):
     if shared.opts.upcast_attn:
         q, k = q.float(), k.float()
 
-    x = sub_quad_attention(q, k, v, q_chunk_size=shared.cmd_opts.sub_quad_q_chunk_size, kv_chunk_size=shared.cmd_opts.sub_quad_kv_chunk_size, chunk_threshold=shared.cmd_opts.sub_quad_chunk_threshold, use_checkpoint=self.training)
+    x = sub_quad_attention(q, k, v, q_chunk_size=shared.cmd_opts.sub_quad_q_chunk_size,
+                           kv_chunk_size=shared.cmd_opts.sub_quad_kv_chunk_size,
+                           chunk_threshold=shared.cmd_opts.sub_quad_chunk_threshold, use_checkpoint=self.training)
 
     x = x.to(dtype)
 
-    x = x.unflatten(0, (-1, h)).transpose(1,2).flatten(start_dim=2)
+    x = x.unflatten(0, (-1, h)).transpose(1, 2).flatten(start_dim=2)
 
     out_proj, dropout = self.to_out
     x = out_proj(x)
@@ -424,8 +454,9 @@ def sub_quad_attention_forward(self, x, context=None, mask=None, **kwargs):
     return x
 
 
-def sub_quad_attention(q, k, v, q_chunk_size=1024, kv_chunk_size=None, kv_chunk_size_min=None, chunk_threshold=None, use_checkpoint=True):
-    bytes_per_token = torch.finfo(q.dtype).bits//8
+def sub_quad_attention(q, k, v, q_chunk_size=1024, kv_chunk_size=None, kv_chunk_size_min=None, chunk_threshold=None,
+                       use_checkpoint=True):
+    bytes_per_token = torch.finfo(q.dtype).bits // 8
     batch_x_heads, q_tokens, _ = q.shape
     _, k_tokens, _ = k.shape
     qk_matmul_size_bytes = batch_x_heads * bytes_per_token * q_tokens * k_tokens
@@ -457,7 +488,7 @@ def sub_quad_attention(q, k, v, q_chunk_size=1024, kv_chunk_size=None, kv_chunk_
             v,
             query_chunk_size=q_chunk_size,
             kv_chunk_size=kv_chunk_size,
-            kv_chunk_size_min = kv_chunk_size_min,
+            kv_chunk_size_min=kv_chunk_size_min,
             use_checkpoint=use_checkpoint,
         )
 
@@ -550,62 +581,62 @@ def scaled_dot_product_no_mem_attention_forward(self, x, context=None, mask=None
 
 
 def cross_attention_attnblock_forward(self, x):
-        h_ = x
-        h_ = self.norm(h_)
-        q1 = self.q(h_)
-        k1 = self.k(h_)
-        v = self.v(h_)
+    h_ = x
+    h_ = self.norm(h_)
+    q1 = self.q(h_)
+    k1 = self.k(h_)
+    v = self.v(h_)
 
-        # compute attention
-        b, c, h, w = q1.shape
+    # compute attention
+    b, c, h, w = q1.shape
 
-        q2 = q1.reshape(b, c, h*w)
-        del q1
+    q2 = q1.reshape(b, c, h * w)
+    del q1
 
-        q = q2.permute(0, 2, 1)   # b,hw,c
-        del q2
+    q = q2.permute(0, 2, 1)  # b,hw,c
+    del q2
 
-        k = k1.reshape(b, c, h*w) # b,c,hw
-        del k1
+    k = k1.reshape(b, c, h * w)  # b,c,hw
+    del k1
 
-        h_ = torch.zeros_like(k, device=q.device)
+    h_ = torch.zeros_like(k, device=q.device)
 
-        mem_free_total = get_available_vram()
+    mem_free_total = get_available_vram()
 
-        tensor_size = q.shape[0] * q.shape[1] * k.shape[2] * q.element_size()
-        mem_required = tensor_size * 2.5
-        steps = 1
+    tensor_size = q.shape[0] * q.shape[1] * k.shape[2] * q.element_size()
+    mem_required = tensor_size * 2.5
+    steps = 1
 
-        if mem_required > mem_free_total:
-            steps = 2**(math.ceil(math.log(mem_required / mem_free_total, 2)))
+    if mem_required > mem_free_total:
+        steps = 2 ** (math.ceil(math.log(mem_required / mem_free_total, 2)))
 
-        slice_size = q.shape[1] // steps if (q.shape[1] % steps) == 0 else q.shape[1]
-        for i in range(0, q.shape[1], slice_size):
-            end = i + slice_size
+    slice_size = q.shape[1] // steps if (q.shape[1] % steps) == 0 else q.shape[1]
+    for i in range(0, q.shape[1], slice_size):
+        end = i + slice_size
 
-            w1 = torch.bmm(q[:, i:end], k)     # b,hw,hw    w[b,i,j]=sum_c q[b,i,c]k[b,c,j]
-            w2 = w1 * (int(c)**(-0.5))
-            del w1
-            w3 = torch.nn.functional.softmax(w2, dim=2, dtype=q.dtype)
-            del w2
+        w1 = torch.bmm(q[:, i:end], k)  # b,hw,hw    w[b,i,j]=sum_c q[b,i,c]k[b,c,j]
+        w2 = w1 * (int(c) ** (-0.5))
+        del w1
+        w3 = torch.nn.functional.softmax(w2, dim=2, dtype=q.dtype)
+        del w2
 
-            # attend to values
-            v1 = v.reshape(b, c, h*w)
-            w4 = w3.permute(0, 2, 1)   # b,hw,hw (first hw of k, second of q)
-            del w3
+        # attend to values
+        v1 = v.reshape(b, c, h * w)
+        w4 = w3.permute(0, 2, 1)  # b,hw,hw (first hw of k, second of q)
+        del w3
 
-            h_[:, :, i:end] = torch.bmm(v1, w4)     # b, c,hw (hw of q) h_[b,c,j] = sum_i v[b,c,i] w_[b,i,j]
-            del v1, w4
+        h_[:, :, i:end] = torch.bmm(v1, w4)  # b, c,hw (hw of q) h_[b,c,j] = sum_i v[b,c,i] w_[b,i,j]
+        del v1, w4
 
-        h2 = h_.reshape(b, c, h, w)
-        del h_
+    h2 = h_.reshape(b, c, h, w)
+    del h_
 
-        h3 = self.proj_out(h2)
-        del h2
+    h3 = self.proj_out(h2)
+    del h2
 
-        h3 += x
+    h3 += x
 
-        return h3
+    return h3
 
 
 def xformers_attnblock_forward(self, x):
@@ -669,7 +700,9 @@ def sub_quad_attnblock_forward(self, x):
     q = q.contiguous()
     k = k.contiguous()
     v = v.contiguous()
-    out = sub_quad_attention(q, k, v, q_chunk_size=shared.cmd_opts.sub_quad_q_chunk_size, kv_chunk_size=shared.cmd_opts.sub_quad_kv_chunk_size, chunk_threshold=shared.cmd_opts.sub_quad_chunk_threshold, use_checkpoint=self.training)
+    out = sub_quad_attention(q, k, v, q_chunk_size=shared.cmd_opts.sub_quad_q_chunk_size,
+                             kv_chunk_size=shared.cmd_opts.sub_quad_kv_chunk_size,
+                             chunk_threshold=shared.cmd_opts.sub_quad_chunk_threshold, use_checkpoint=self.training)
     out = rearrange(out, 'b (h w) c -> b c h w', h=h)
     out = self.proj_out(out)
     return x + out

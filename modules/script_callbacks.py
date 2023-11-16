@@ -129,11 +129,17 @@ callback_map = dict(
 
 
 def clear_callbacks():
+    """
+    清空callback_map中所有key对应的列表
+    """
     for callback_list in callback_map.values():
         callback_list.clear()
 
 
 def app_started_callback(demo: Optional[Blocks], app: FastAPI):
+    """
+    app启动成功后，回调callback_map['callbacks_app_started']列表里的函数
+    """
     for c in callback_map['callbacks_app_started']:
         try:
             c.callback(demo, app)
@@ -307,9 +313,15 @@ def list_unets_callback():
 
 
 def add_callback(callbacks, fun):
+    """
+    将回调函数fun添加到回到函数列表callbacks中  ·
+    """
     stack = [x for x in inspect.stack() if x.filename != __file__]
     filename = stack[0].filename if stack else 'unknown file'
-
+    # filename: 注册回调函数的py文件名
+    # fun：回调函数名
+    # eg:ScriptCallback(script='C:\\dev\\github\\stable-diffusion-webui\\modules\\initialize.py',
+    #                   callback=<function list_optimizers at 0x00000207CD58E9E0>)
     callbacks.append(ScriptCallback(filename, fun))
 
 
@@ -468,9 +480,14 @@ def on_before_ui(callback):
 
 
 def on_list_optimizers(callback):
-    """register a function to be called when UI is making a list of cross attention optimization options.
+    """
+    register a function to be called when UI is making a list of cross attention optimization options.
     The function will be called with one argument, a list, and shall add objects of type modules.sd_hijack_optimizations.SdOptimization
-    to it."""
+    to it.
+    注册一个函数，当UI正在制作跨注意力优化选项列表时调用该函数。
+    该函数将使用一个参数（列表）调用，并应添加 modules.sd_hijack_optimizations.SdOptimization 类型的对象
+    它。
+    """
 
     add_callback(callback_map['callbacks_list_optimizers'], callback)
 

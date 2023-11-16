@@ -30,7 +30,8 @@ def create_auto_preprocessing_script_data():
     from modules import scripts
 
     res = []
-
+    # postprocessing_enable_in_main_ui 在文生图/图生图选项卡中启用后处理操作
+    # [CodeFormer,GFPGAN,Upscale]
     for name in shared.opts.postprocessing_enable_in_main_ui:
         script = next(iter([x for x in scripts.postprocessing_scripts_data if x.script_class.name == name]), None)
         if script is None:

@@ -313,6 +313,11 @@ ScriptClassData = namedtuple("ScriptClassData", ["script_class", "path", "basedi
 
 
 def list_scripts(scriptdirname, extension, *, include_extensions=True):
+    """
+    :param scriptdirname: 脚本目录名
+    :param extension: 文件后缀名
+    :return: scriptdirname目录下后缀名为extension的脚本列表
+    """
     scripts_list = []
 
     basedir = os.path.join(paths.script_path, scriptdirname)
@@ -324,7 +329,8 @@ def list_scripts(scriptdirname, extension, *, include_extensions=True):
         for ext in extensions.active():
             scripts_list += ext.list_files(scriptdirname, extension)
 
-    scripts_list = [x for x in scripts_list if os.path.splitext(x.path)[1].lower() == extension and os.path.isfile(x.path)]
+    scripts_list = [x for x in scripts_list if
+                    os.path.splitext(x.path)[1].lower() == extension and os.path.isfile(x.path)]
 
     return scripts_list
 
@@ -351,23 +357,35 @@ def load_scripts():
     postprocessing_scripts_data.clear()
     script_callbacks.clear_callbacks()
 
-    scripts_list = list_scripts("scripts", ".py") + list_scripts("modules/processing_scripts", ".py", include_extensions=False)
+    # 读取modules/processing_scripts和scripts目录下的.py文件列表
+    scripts_list = list_scripts("scripts", ".py") + list_scripts("modules/processing_scripts", ".py",
+                                                                 include_extensions=False)
 
     syspath = sys.path
 
     def register_scripts_from_module(module):
+        # 遍历模块的__dict__属性，其中包含模块中的所有变量、函数、类等。
         for script_class in module.__dict__.values():
             if not inspect.isclass(script_class):
                 continue
 
             if issubclass(script_class, Script):
+                # 如果是Script的子类，则组装成ScriptClassData存入scripts_data列表
                 scripts_data.append(ScriptClassData(script_class, scriptfile.path, scriptfile.basedir, module))
             elif issubclass(script_class, scripts_postprocessing.ScriptPostprocessing):
-                postprocessing_scripts_data.append(ScriptClassData(script_class, scriptfile.path, scriptfile.basedir, module))
+                # 若果是ScriptPostprocessing的子类，则组装ScriptClassData存入postprocessing_scripts_data列表
+                postprocessing_scripts_data.append(
+                    ScriptClassData(script_class, scriptfile.path, scriptfile.basedir, module))
 
     def orderby(basedir):
+        """
+        计算basedir的优先级：1.webui 2.内置扩展 3.三方扩展
+
+        :param basedir: 脚本文件基目录
+        :return: 优先级
+        """
         # 1st webui, 2nd extensions-builtin, 3rd extensions
-        priority = {os.path.join(paths.script_path, "extensions-builtin"):1, paths.script_path:0}
+        priority = {os.path.join(paths.script_path, "extensions-builtin"): 1, paths.script_path: 0}
         for key in priority:
             if basedir.startswith(key):
                 return priority[key]
@@ -376,9 +394,10 @@ def load_scripts():
     for scriptfile in sorted(scripts_list, key=lambda x: [orderby(x.basedir), x]):
         try:
             if scriptfile.basedir != paths.script_path:
+                # 若脚本文件的基目录与全局路径paths.script_path不同。把这个基目录添加到系统路径sys.path的最前面。
                 sys.path = [scriptfile.basedir] + sys.path
             current_basedir = scriptfile.basedir
-
+            # 加载module
             script_module = script_loading.load_module(scriptfile.path)
             register_scripts_from_module(script_module)
 

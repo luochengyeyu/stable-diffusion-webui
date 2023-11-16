@@ -95,20 +95,24 @@ def initialize_rest(*, reload_script_modules=False):
     """
     from modules.shared_cmd_options import cmd_opts
 
+    # 设置采样器
     from modules import sd_samplers
     sd_samplers.set_samplers()
     startup_timer.record("set samplers")
 
+    # 读取扩展列表
     from modules import extensions
     extensions.list_extensions()
     startup_timer.record("list extensions")
 
+    # 恢复配置状态文件
     from modules import initialize_util
     initialize_util.restore_config_state_file()
     startup_timer.record("restore config state file")
 
     from modules import shared, upscaler, scripts
     if cmd_opts.ui_debug_mode:
+        # 不加载模型以快速启动
         shared.sd_upscalers = upscaler.UpscalerLanczos().scalers
         scripts.load_scripts()
         return
@@ -149,6 +153,7 @@ def initialize_rest(*, reload_script_modules=False):
     startup_timer.record("refresh textual inversion templates")
 
     from modules import script_callbacks, sd_hijack_optimizations, sd_hijack
+    # 注册获取优化器列表回调
     script_callbacks.on_list_optimizers(sd_hijack_optimizations.list_optimizers)
     sd_hijack.list_optimizers()
     startup_timer.record("scripts list_optimizers")

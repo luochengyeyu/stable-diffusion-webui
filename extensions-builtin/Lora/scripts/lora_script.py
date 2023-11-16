@@ -66,6 +66,7 @@ def api_networks(_: gr.Blocks, app: FastAPI):
         return networks.list_available_networks()
 
 
+# 注册app启动成功回调
 script_callbacks.on_app_started(api_networks)
 
 re_lora = re.compile("<lora:([^:]+):")
