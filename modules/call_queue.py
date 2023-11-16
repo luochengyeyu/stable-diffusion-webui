@@ -8,8 +8,12 @@ queue_lock = fifo_lock.FIFOLock()
 
 
 def wrap_queued_call(func):
+    """ 排队调用装饰器函数"""
+    # 定义一个新的函数，这是装饰器返回的函数
     def f(*args, **kwargs):
+        # 使用队列锁保护下面的操作
         with queue_lock:
+            # 调用原始函数并获取结果
             res = func(*args, **kwargs)
 
         return res
@@ -20,14 +24,16 @@ def wrap_queued_call(func):
 def wrap_gradio_gpu_call(func, extra_outputs=None):
     @wraps(func)
     def f(*args, **kwargs):
-
+        # 受任意数量的位置参数（*args）和关键字参数（**kwargs）
         # if the first argument is a string that says "task(...)", it is treated as a job id
+        # 检查函数的第一个参数是否是一个以"task("开头，以")"结尾的字符串。如果是，它将此参数视为一个任务ID，并将其添加到一个任务队列中。
         if args and type(args[0]) == str and args[0].startswith("task(") and args[0].endswith(")"):
             id_task = args[0]
             progress.add_task_to_queue(id_task)
         else:
             id_task = None
 
+        # 使用queue_lock上下文管理器来确保线程安全
         with queue_lock:
             shared.state.begin(job=id_task)
             progress.start_task(id_task)
