@@ -256,7 +256,7 @@ class Sampler:
 
         state.sampling_step = step
         shared.total_tqdm.update()
-
+    # 实现了采样
     def launch_sampling(self, steps, func):
         self.model_wrap_cfg.steps = steps
         self.model_wrap_cfg.total_steps = self.config.total_steps(steps)

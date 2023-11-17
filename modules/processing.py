@@ -449,7 +449,7 @@ class StableDiffusionProcessing:
             self.width,
             self.height,
         )
-
+    # 条件向量的换成功能，通过参数作为键将结果保存到缓存,实现了重复利用历史计算结果的目的,提高了效率。
     def get_conds_with_caching(self, function, required_prompts, steps, caches, extra_network_data, hires_steps=None):
         """
         Returns the result of calling function(shared.sd_model, required_prompts, steps)
@@ -462,7 +462,7 @@ class StableDiffusionProcessing:
 
         caches is a list with items described above.
         """
-
+        # json文件中的采样器是否为空，如果是空的则执行下面的代码 具体干嘛的未知
         if shared.opts.use_old_scheduling:
             old_schedules = prompt_parser.get_learned_conditioning_prompt_schedules(required_prompts, steps,
                                                                                     hires_steps, False)
@@ -470,7 +470,7 @@ class StableDiffusionProcessing:
                                                                                     hires_steps, True)
             if old_schedules != new_schedules:
                 self.extra_generation_params["Old prompt editing timelines"] = True
-
+        
         cached_params = self.cached_params(required_prompts, steps, extra_network_data, hires_steps,
                                            shared.opts.use_old_scheduling)
 
@@ -485,28 +485,29 @@ class StableDiffusionProcessing:
 
         cache[0] = cached_params
         return cache[1]
-
+    # 为每个batch设置条件向量c和uc
     def setup_conds(self):
+        # 将正负prompt解析成SdConditioning对象
         prompts = prompt_parser.SdConditioning(self.prompts, width=self.width, height=self.height)
         negative_prompts = prompt_parser.SdConditioning(self.negative_prompts, width=self.width, height=self.height,
                                                         is_negative_prompt=True)
-
+        # 获取采样器配置
         sampler_config = sd_samplers.find_sampler_config(self.sampler_name)
+        # 根据采样器和用户设置的步数计算总步数
         total_steps = sampler_config.total_steps(self.steps) if sampler_config else self.steps
         self.step_multiplier = total_steps // self.steps
         self.firstpass_steps = total_steps
-
+        # 会从缓存中获取,否则调用条件编码器生成
         self.uc = self.get_conds_with_caching(prompt_parser.get_learned_conditioning, negative_prompts, total_steps,
                                               [self.cached_uc], self.extra_network_data)
         self.c = self.get_conds_with_caching(prompt_parser.get_multicond_learned_conditioning, prompts, total_steps,
                                              [self.cached_c], self.extra_network_data)
-
     def get_conds(self):
         return self.c, self.uc
-
+    # 处理正向关键词，分离出纯文本关键词和对应的附加网络信息
     def parse_extra_network_prompts(self):
         self.prompts, self.extra_network_data = extra_networks.parse_prompts(self.prompts)
-
+    # 判断是否需要保存采样结果图片
     def save_samples(self) -> bool:
         """Returns whether generated images need to be written to disk"""
         return opts.samples_save and not self.do_not_save_samples and (
@@ -898,33 +899,34 @@ def process_images_inner(p: StableDiffusionProcessing) -> Processed:
             # 如果已经设置为终止 则直接break 结束跳出循环
             if state.interrupted:
                 break
-            # 载入模型数据  方法中判断了是否加载
+            # 载入模型数据  方法中判断了是否加载 
             sd_models.reload_model_weights()  # model can be changed for example by refiner
-
+            # 获得此生图任务的正向关键词，反向关键词，随机种子，随机子种子
             p.prompts = p.all_prompts[n * p.batch_size:(n + 1) * p.batch_size]
             p.negative_prompts = p.all_negative_prompts[n * p.batch_size:(n + 1) * p.batch_size]
             p.seeds = p.all_seeds[n * p.batch_size:(n + 1) * p.batch_size]
             p.subseeds = p.all_subseeds[n * p.batch_size:(n + 1) * p.batch_size]
-
+            # 根据随机种子和宽高初始化一下一个rng图片
             p.rng = rng.ImageRNG((opt_C, p.height // opt_f, p.width // opt_f), p.seeds, subseeds=p.subseeds,
                                  subseed_strength=p.subseed_strength, seed_resize_from_h=p.seed_resize_from_h,
                                  seed_resize_from_w=p.seed_resize_from_w)
-
+            # 如果有脚本 则先执行脚本的before_process_batch方法
             if p.scripts is not None:
                 p.scripts.before_process_batch(p, batch_number=n, prompts=p.prompts, seeds=p.seeds, subseeds=p.subseeds)
-
+            # 如果没有关键词则进行退出
             if len(p.prompts) == 0:
                 break
-
+            # 处理关键词，将prompts修改成纯文本关键词，并将对应的附加网络添加到extra_network_data
             p.parse_extra_network_prompts()
-
+            # 如果不开启附加网络 就跳过处理extra_network_data
             if not p.disable_extra_networks:
                 with devices.autocast():
+                    # 激活对应的附加网络 先不管
                     extra_networks.activate(p, p.extra_network_data)
-
+            # 脚本不为空需要调取process_batch函数
             if p.scripts is not None:
                 p.scripts.process_batch(p, batch_number=n, prompts=p.prompts, seeds=p.seeds, subseeds=p.subseeds)
-
+            # 第一个batch在完成后保存参数文本文件params.txt
             # params.txt should be saved after scripts.process_batch, since the
             # infotext could be modified by that callback
             # Example: a wildcard processed by process_batch sets an extra model
@@ -933,40 +935,44 @@ def process_images_inner(p: StableDiffusionProcessing) -> Processed:
                 with open(os.path.join(paths.data_path, "params.txt"), "w", encoding="utf8") as file:
                     processed = Processed(p, [])
                     file.write(processed.infotext(p, 0))
-
+            # 根据前面的信息获取此次的 条件向量c和uc
             p.setup_conds()
-
+            # 好像是注释 具体方式在看
             for comment in model_hijack.comments:
                 p.comment(comment)
-
+            # 用model_hijack.extra_generation_params赋值给extra_generation_params，作用未知
             p.extra_generation_params.update(model_hijack.extra_generation_params)
-
+            # 修改json中的任务状态
             if p.n_iter > 1:
                 shared.state.job = f"Batch {n + 1} out of {p.n_iter}"
-
+            #生成采样结果latent，这个是一批次的  不止一张    
+            # 调用了Stable Diffusion模型的采样接口函数sample来为当前batch的采样结果
             with devices.without_autocast() if devices.unet_needs_upcast else devices.autocast():
                 samples_ddim = p.sample(conditioning=p.c, unconditional_conditioning=p.uc, seeds=p.seeds,
                                         subseeds=p.subseeds, subseed_strength=p.subseed_strength, prompts=p.prompts)
-
+            # 判断采样结果samples_ddim是否已经解码过,如果是直接赋值给x_samples_ddim
             if getattr(samples_ddim, 'already_decoded', False):
                 x_samples_ddim = samples_ddim
+            
             else:
+                #如果设置的采样方法不是full则使用设置的vae接码方法进行解码
                 if opts.sd_vae_decode_method != 'Full':
                     p.extra_generation_params['VAE Decoder'] = opts.sd_vae_decode_method
 
                 x_samples_ddim = decode_latent_batch(p.sd_model, samples_ddim, target_device=devices.cpu,
                                                      check_for_nans=True)
-
+            # 将解码结果torch.stack打包成Tensor,数据类型转换为float
             x_samples_ddim = torch.stack(x_samples_ddim).float()
+            # 对图像像素值进行(0-1)标准化处理
             x_samples_ddim = torch.clamp((x_samples_ddim + 1.0) / 2.0, min=0.0, max=1.0)
-
+            # 删除原来的samples_ddim
             del samples_ddim
-
+            # 低显存使用cpu
             if lowvram.is_enabled(shared.sd_model):
                 lowvram.send_everything_to_cpu()
-
+            # 驱动释放
             devices.torch_gc()
-
+            #脚本的生成后处理
             if p.scripts is not None:
                 p.scripts.postprocess_batch(p, x_samples_ddim, batch_number=n)
 
@@ -976,19 +982,36 @@ def process_images_inner(p: StableDiffusionProcessing) -> Processed:
                 batch_params = scripts.PostprocessBatchListArgs(list(x_samples_ddim))
                 p.scripts.postprocess_batch_list(p, batch_params, batch_number=n)
                 x_samples_ddim = batch_params.images
-
+            # 生成生成信息的文档
             def infotext(index=0, use_main_prompt=False):
                 return create_infotext(p, p.prompts, p.seeds, p.subseeds, use_main_prompt=use_main_prompt, index=index,
                                        all_negative_prompts=p.negative_prompts)
-
+            # bool 是否返回采样图片 是返回
             save_samples = p.save_samples()
+            # 这段代码做以下主要工作
 
+            # 循环每个采样图片,进行必要的后处理:
+            # 格式/类型转换
+            # 人脸修复
+            # 颜色校正
+            # 图像叠加
+            # 生成描述信息
+            # 保存图片(如果配置开启):
+
+            # 设置文件名和路径
+            # 保存不同处理阶段的图片
+            # 保存掩码图片(如果配置开启)
+            # 封装各种输出:
+            # 图片对象
+            # 描述信息
+            # 掩码图片
             for i, x_sample in enumerate(x_samples_ddim):
                 p.batch_index = i
-
+                # 片格式转换为RGB数组
                 x_sample = 255. * np.moveaxis(x_sample.cpu().numpy(), 0, 2)
+                # 将像素值数据类型转换为uint8
                 x_sample = x_sample.astype(np.uint8)
-
+                # 面部修复 跳过    
                 if p.restore_faces:
                     if save_samples and opts.save_images_before_face_restoration:
                         images.save_image(Image.fromarray(x_sample), p.outpath_samples, "", p.seeds[i], p.prompts[i],
@@ -998,13 +1021,14 @@ def process_images_inner(p: StableDiffusionProcessing) -> Processed:
 
                     x_sample = modules.face_restoration.restore_faces(x_sample)
                     devices.torch_gc()
-
+                # 将处理后的x_sample转换为Image对象
                 image = Image.fromarray(x_sample)
-
+                # 有脚本则调用PostprocessImageArgs方法
                 if p.scripts is not None:
                     pp = scripts.PostprocessImageArgs(image)
                     p.scripts.postprocess_image(p, pp)
                     image = pp.image
+                # 颜色校正的处理
                 if p.color_corrections is not None and i < len(p.color_corrections):
                     if save_samples and opts.save_images_before_color_correction:
                         image_without_cc = apply_overlay(image, p.paste_to, i, p.overlay_images)
@@ -1013,7 +1037,7 @@ def process_images_inner(p: StableDiffusionProcessing) -> Processed:
                     image = apply_color_correction(p.color_corrections[i], image)
 
                 image = apply_overlay(image, p.paste_to, i, p.overlay_images)
-
+                # 如果需要保存图片则保存图片
                 if save_samples:
                     images.save_image(image, p.outpath_samples, "", p.seeds[i], p.prompts[i], opts.samples_format,
                                       info=infotext(i), p=p)
@@ -1278,17 +1302,21 @@ class StableDiffusionProcessingTxt2Img(StableDiffusionProcessing):
                 self.extra_generation_params["Hires upscaler"] = self.hr_upscaler
 
     def sample(self, conditioning, unconditional_conditioning, seeds, subseeds, subseed_strength, prompts):
+        # 创建采样器对象self.sampler  
         self.sampler = sd_samplers.create_sampler(self.sampler_name, self.sd_model)
-
+        # 生成随机数作为输入
         x = self.rng.next()
+        # 调用采样器进行初级采样,返回结果
         samples = self.sampler.sample(self, x, conditioning, unconditional_conditioning,
                                       image_conditioning=self.txt2img_image_conditioning(x))
+        # 删除临时变量
         del x
-
+        # 如果不启用高分（应该是放大） 返回结果
         if not self.enable_hr:
             return samples
-
+        # 判断解码方式
         if self.latent_scale_mode is None:
+            # 解码采样结果
             decoded_samples = torch.stack(
                 decode_latent_batch(self.sd_model, samples, target_device=devices.cpu, check_for_nans=True)).to(
                 dtype=torch.float32)
@@ -1301,7 +1329,7 @@ class StableDiffusionProcessingTxt2Img(StableDiffusionProcessing):
         devices.torch_gc()
 
         return self.sample_hr_pass(samples, decoded_samples, seeds, subseeds, subseed_strength, prompts)
-
+    # 高清修复的潜空间放大
     def sample_hr_pass(self, samples, decoded_samples, seeds, subseeds, subseed_strength, prompts):
         if shared.state.interrupted:
             return samples

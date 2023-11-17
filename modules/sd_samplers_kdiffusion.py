@@ -220,36 +220,42 @@ class KDiffusionSampler(sd_samplers_common.Sampler):
         return samples
 
     def sample(self, p, x, conditioning, unconditional_conditioning, steps=None, image_conditioning=None):
+        # 获取步长
         steps = steps or p.steps
-
+        # 噪声标准差
         sigmas = self.get_sigmas(p, steps)
-
+        #  判断是否使用SGM噪声，噪声初始化为x
         if opts.sgm_noise_multiplier:
+            # 记录配置参数
             p.extra_generation_params["SGM noise multiplier"] = True
             x = x * torch.sqrt(1.0 + sigmas[0] ** 2.0)
         else:
             x = x * sigmas[0]
-
+       
         extra_params_kwargs = self.initialize(p)
+        # 获取参数配置
         parameters = inspect.signature(self.func).parameters
-
+        # 判断是否需要steps参数
         if 'n' in parameters:
+            # 设置steps参数
             extra_params_kwargs['n'] = steps
-
+        # 判断是否需要sigma参数
         if 'sigma_min' in parameters:
             extra_params_kwargs['sigma_min'] = self.model_wrap.sigmas[0].item()
             extra_params_kwargs['sigma_max'] = self.model_wrap.sigmas[-1].item()
-
+        # 设置sigma参数
         if 'sigmas' in parameters:
+            # 设置sigmas参数
             extra_params_kwargs['sigmas'] = sigmas
-
+        # 初始化Brownian噪声
         if self.config.options.get('brownian_noise', False):
+            # 设置采样状态、参数等
             noise_sampler = self.create_noise_sampler(x, sigmas, p)
             extra_params_kwargs['noise_sampler'] = noise_sampler
 
         if self.config.options.get('solver_type', None) == 'heun':
             extra_params_kwargs['solver_type'] = 'heun'
-
+        # 输入为潜空间 
         self.last_latent = x
         self.sampler_extra_args = {
             'cond': conditioning,

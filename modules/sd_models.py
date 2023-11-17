@@ -564,19 +564,21 @@ class SdModelData:
                     self.sd_model = None
 
         return self.sd_model
-
+    # 设置/更换Stable Diffusion模型对象
     def set_sd_model(self, v, already_loaded=False):
         self.sd_model = v
+        # 如果已经加载过模型,设置一些VAE参数
         if already_loaded:
             sd_vae.base_vae = getattr(v, "base_vae", None)
             sd_vae.loaded_vae_file = getattr(v, "loaded_vae_file", None)
             sd_vae.checkpoint_info = v.sd_checkpoint_info
 
         try:
+            # 从loaded_sd_models列表中移除旧模型
             self.loaded_sd_models.remove(v)
         except ValueError:
             pass
-
+        # 如果新模型不为空,将其加入loaded_sd_models表头    
         if v is not None:
             self.loaded_sd_models.insert(0, v)
 
@@ -841,17 +843,18 @@ def reload_model_weights(sd_model=None, info=None):
 
         sd_hijack.model_hijack.hijack(sd_model)
         timer.record("hijack")
-
+        # 调用模型加载成功的回调函数
         script_callbacks.model_loaded_callback(sd_model)
         timer.record("script callbacks")
-
+        # 调用模型加载成功的回调函数 如不是低显存的模式则 模型加载到gpu中
         if not sd_model.lowvram:
             sd_model.to(devices.device)
             timer.record("move model to device")
 
     print(f"Weights loaded in {timer.summary()}.")
-
+    # 将模型存到全局列表中    
     model_data.set_sd_model(sd_model)
+    #加载unet模型
     sd_unet.apply_unet()
 
     return sd_model

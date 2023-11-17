@@ -174,7 +174,7 @@ def deactivate(p, extra_network_data):
 
 re_extra_net = re.compile(r"<(\w+):([^>]+)>")
 
-
+# 把关键词中的词进行处理，输出两个列表，一个是纯文本关键词一个额外网络 例如lora 或者其他插件
 def parse_prompt(prompt):
     res = defaultdict(list)
 
@@ -190,7 +190,7 @@ def parse_prompt(prompt):
 
     return prompt, res
 
-
+# 返回纯文本关键词和对应的附加网络信息
 def parse_prompts(prompts):
     res = []
     extra_data = None
