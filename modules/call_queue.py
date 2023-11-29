@@ -35,15 +35,20 @@ def wrap_gradio_gpu_call(func, extra_outputs=None):
 
         # 使用queue_lock上下文管理器来确保线程安全
         with queue_lock:
+            # 将job记录共享状态上
             shared.state.begin(job=id_task)
+            # 开始任务，将此 task 设置为 current_task
             progress.start_task(id_task)
 
             try:
+                # 执行实际的函数并传入参数
                 res = func(*args, **kwargs)
+                # 记录执行结果
                 progress.record_results(id_task, res)
             finally:
+                # 无论是否发生异常都要将任务添加到 已完成列表
                 progress.finish_task(id_task)
-
+            # 更改任务状态为结束
             shared.state.end()
 
         return res

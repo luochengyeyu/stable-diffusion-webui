@@ -28,12 +28,16 @@ def start_task(id_task):
 
 
 def finish_task(id_task):
+    """
+    记录已完成任务
+    """
     global current_task
 
     if current_task == id_task:
         current_task = None
 
     finished_tasks.append(id_task)
+    # 已完成任务列表上限为16，超过上限需要移除列表中第一个任务（即最早完成的那个）。
     if len(finished_tasks) > 16:
         finished_tasks.pop(0)
 

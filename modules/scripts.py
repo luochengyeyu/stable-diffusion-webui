@@ -411,7 +411,9 @@ def load_scripts():
 
     global scripts_txt2img, scripts_img2img, scripts_postproc
 
+    # 创建 文生图脚本运行程序，并赋值给全局变量
     scripts_txt2img = ScriptRunner()
+    # 创建 图生图脚本运行程序，并赋值给全局变量
     scripts_img2img = ScriptRunner()
     scripts_postproc = scripts_postprocessing.ScriptPostprocessingRunner()
 

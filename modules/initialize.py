@@ -172,7 +172,7 @@ def initialize_rest(*, reload_script_modules=False):
         its optimization may be None because the list of optimizaers has neet been filled
         by that time, so we apply optimization again.
         """
-
+        # 这里内部调用了加载模型方法
         shared.sd_model  # noqa: B018
         if sd_hijack.current_optimizer is None:
             # 启动流程没有走这里

@@ -103,14 +103,15 @@ class Shared(sys.modules[__name__].__class__):
     """
     this class is here to provide sd_model field as a property, so that it can be created and loaded on demand rather than
     at program startup.
+    此类在此处提供sd_model字段作为属性，以便可以按需创建和加载它，而不是在程序启动时创建和加载。
     """
 
     sd_model_val = None
 
+    # @property是一个装饰器,它表示下面的 sd_model 方法将作为一个属性被访问。eg:Shared.sd_model
     @property
     def sd_model(self):
         import modules.sd_models
-
         return modules.sd_models.model_data.get_sd_model()
 
     @sd_model.setter
@@ -120,4 +121,6 @@ class Shared(sys.modules[__name__].__class__):
         modules.sd_models.model_data.set_sd_model(value)
 
 
+# 将模块modules.shared的类替换为 Shared 类。
+# 这意味着当你导入modules.shared模块时，你实际上是导入了一个Shared类的实例。
 sys.modules['modules.shared'].__class__ = Shared

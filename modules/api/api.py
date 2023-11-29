@@ -77,6 +77,7 @@ def script_name_to_index(name, scripts):
 
 
 def validate_sampler_name(name):
+    # 从采样器列表中获取名字为 name 的采样器
     config = sd_samplers.all_samplers_map.get(name, None)
     if config is None:
         raise HTTPException(status_code=404, detail="Sampler not found")
@@ -415,8 +416,11 @@ class Api:
             self.default_script_arg_txt2img = self.init_default_script_args(script_runner)
         selectable_scripts, selectable_script_idx = self.get_selectable_script(txt2imgreq.script_name, script_runner)
 
-        populate = txt2imgreq.copy(update={  # Override __init__ params
+        populate = txt2imgreq.copy(update={  # Override __init__ params 覆盖txt2imgreq的初始化参数
+            # 若请求参数未指定 sampler_name 则使用 sampler_index
+            # 校验采样器名字（从采样器列表获取，若取不到抛出404错误）
             "sampler_name": validate_sampler_name(txt2imgreq.sampler_name or txt2imgreq.sampler_index),
+            # save_images默认值为 False
             "do_not_save_samples": not txt2imgreq.save_images,
             "do_not_save_grid": not txt2imgreq.save_images,
         })

@@ -108,6 +108,9 @@ class State:
         return obj
 
     def begin(self, job: str = "(unknown)"):
+        """
+        任务开始，主要用于初始化任务状态
+        """
         self.sampling_step = 0
         self.job_count = -1
         self.processing_has_refined_job_count = False
@@ -126,11 +129,13 @@ class State:
         log.info("Starting job %s", job)
 
     def end(self):
+        # 任务结束
+        # 任务耗时
         duration = time.time() - self.time_start
         log.info("Ending job %s (%.2f seconds)", self.job, duration)
         self.job = ""
         self.job_count = 0
-
+        # 释放资源
         devices.torch_gc()
 
     def set_current_image(self):

@@ -564,6 +564,7 @@ class SdModelData:
                     self.sd_model = None
 
         return self.sd_model
+
     # 设置/更换Stable Diffusion模型对象
     def set_sd_model(self, v, already_loaded=False):
         self.sd_model = v
@@ -627,9 +628,10 @@ def send_model_to_trash(m):
 
 def load_model(checkpoint_info=None, already_loaded_state_dict=None):
     from modules import sd_hijack
+    # checkpoint_info 为 None 则调用 select_checkpoint()
     checkpoint_info = checkpoint_info or select_checkpoint()
 
-    timer = Timer()
+    timer = Timer(True)
 
     if model_data.sd_model:
         send_model_to_trash(model_data.sd_model)
@@ -794,7 +796,7 @@ def reload_model_weights(sd_model=None, info=None):
     # 如果传入模型的info 要不然使用选择当前选中的项目的模型的info
     checkpoint_info = info or select_checkpoint()
     # 创建定时器对象开始计时
-    timer = Timer()
+    timer = Timer(True)
     # 如果不传入模型,则从model_data中获取全局模型
     if not sd_model:
         sd_model = model_data.sd_model
@@ -854,14 +856,14 @@ def reload_model_weights(sd_model=None, info=None):
     print(f"Weights loaded in {timer.summary()}.")
     # 将模型存到全局列表中    
     model_data.set_sd_model(sd_model)
-    #加载unet模型
+    # 加载unet模型
     sd_unet.apply_unet()
 
     return sd_model
 
 
 def unload_model_weights(sd_model=None, info=None):
-    timer = Timer()
+    timer = Timer(True)
 
     if model_data.sd_model:
         # 将sd_model移动到CPU
